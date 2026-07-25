@@ -14,7 +14,8 @@
 Platform/
 ├── supabase/
 │   ├── migrations/0001_init.sql   ← テーブル・RLS・Realtime の定義
-│   └── seed.sql                   ← メンバー5名の初期データ
+│   ├── seed.sql                   ← メンバー5名の初期データ
+│   └── verify.sql                 ← セットアップが揃っているかの確認用
 └── frontend/                      ← React + TypeScript + Vite（Vercel にデプロイ）
     └── src/
         ├── lib/finance.ts         ← 残高計算のすべて（唯一の計算元）
@@ -34,6 +35,9 @@ Platform/
    リージョンは **Northeast Asia (Tokyo)** が最も速いです。
 2. 左メニューの **SQL Editor** を開き、`supabase/migrations/0001_init.sql` の中身を全部貼り付けて **Run**。
 3. 同じく `supabase/seed.sql` を貼り付けて **Run**（メンバー5名が登録されます）。
+4. 確認として `supabase/verify.sql` を貼り付けて **Run**。
+   「判定」列がすべて `OK` になっていれば手順1・2は完了です。
+   最下行に `VITE_TEAM_EMAIL` に入れる値も出ます。
 
 ### 2. チーム共有アカウントを1つ作る
 
