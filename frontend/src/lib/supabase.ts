@@ -29,7 +29,11 @@ export function describeError(error: unknown): string {
   if (!error) return '不明なエラーが発生しました'
   const message = typeof error === 'string' ? error : (error as { message?: string }).message ?? ''
 
-  if (/invalid login credentials/i.test(message)) return 'パスワードが違います'
+  // Supabase はメール違いとパスワード違いを区別せず同じ応答を返すため、
+  // 「パスワードが違います」と断定すると設定ミスのときに原因を見失う
+  if (/invalid login credentials/i.test(message)) {
+    return `ログインできません。パスワードが違うか、設定されているメールアドレス（${TEAM_EMAIL || '未設定'}）が Supabase に登録したアカウントと一致していません`
+  }
   if (/email not confirmed/i.test(message)) {
     return 'このアカウントのメールアドレスが未確認です。Supabase の Authentication → Users で該当ユーザーを Confirm してください'
   }
