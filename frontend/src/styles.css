@@ -146,6 +146,11 @@ a {
   color: var(--accent-ink);
 }
 
+/* 狭い画面では短縮ラベルに差し替える（下の @media で入れ替え） */
+.nav__short {
+  display: none;
+}
+
 .topbar__aside {
   display: flex;
   align-items: center;
@@ -225,12 +230,16 @@ a {
   gap: 14px;
 }
 
+/*
+ * minmax() の最小値は親より広くても縮まないため、狭い画面でカードが
+ * はみ出す。min(…, 100%) で「親幅を超えない最小値」にしておく。
+ */
 .grid--stats {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
 }
 
 .grid--two {
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
 }
 
 /* ヒーロー数値 + 補助タイル。ヒーローは1画面に1つだけ */
@@ -457,7 +466,7 @@ a {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -950,13 +959,64 @@ tfoot td {
   margin-top: 8px;
 }
 
+/*
+ * スマホ・タブレット縦。
+ * ナビをブランド名とログアウトの間に置くと、残った隙間に押し込まれて
+ * タブが1つも見えなくなる（430px 幅で表示幅 38px）。独立した行に移して
+ * 横幅いっぱいを使い、ラベルも短縮して5つとも指で押せるようにする。
+ */
+@media (max-width: 880px) {
+  .topbar__inner {
+    padding: 8px 12px 0;
+    min-height: 0;
+    gap: 10px;
+  }
+
+  .brand {
+    order: 1;
+    font-size: 14px;
+  }
+
+  .topbar__aside {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .nav {
+    order: 3;
+    /* flex-basis 100% で必ず改行させる */
+    flex: 1 0 100%;
+    gap: 4px;
+    margin: 8px -12px 0;
+    padding: 6px 8px 5px;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav a {
+    /* 5つで幅を等分し、指で押せる高さ（約42px）を確保する */
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    padding: 10px 6px;
+    font-size: 13px;
+  }
+
+}
+
+/* 正式ラベルは合計 478px 必要。入らなくなったら短縮ラベルに切り替える */
+@media (max-width: 560px) {
+  .nav__full {
+    display: none;
+  }
+
+  .nav__short {
+    display: inline;
+  }
+}
+
 @media (max-width: 620px) {
   .main {
     padding: 16px 14px 64px;
-  }
-
-  .topbar__inner {
-    padding: 0 14px;
   }
 
   .stat--hero .stat__value {

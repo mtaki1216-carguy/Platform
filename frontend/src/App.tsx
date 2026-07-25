@@ -26,12 +26,16 @@ export function App() {
   )
 }
 
+/**
+ * short は狭い画面用の短縮ラベル。
+ * スマホでは5つのタブを1行に収める必要があり、正式名称だと入りきらない。
+ */
 const NAV = [
-  { to: '/', label: 'ダッシュボード' },
-  { to: '/budget', label: '予算管理' },
-  { to: '/maintenance', label: '整備記録' },
-  { to: '/races', label: 'レース管理' },
-  { to: '/members', label: 'メンバー' },
+  { to: '/', label: 'ダッシュボード', short: 'ホーム' },
+  { to: '/budget', label: '予算管理', short: '予算' },
+  { to: '/maintenance', label: '整備記録', short: '整備' },
+  { to: '/races', label: 'レース管理', short: 'レース' },
+  { to: '/members', label: 'メンバー', short: 'メンバー' },
 ]
 
 function Shell() {
@@ -54,7 +58,9 @@ function Shell() {
                 end={item.to === '/'}
                 className={({ isActive }) => (isActive ? 'is-active' : undefined)}
               >
-                {item.label}
+                {/* 表示していない方は display:none なので読み上げにも乗らない */}
+                <span className="nav__full">{item.label}</span>
+                <span className="nav__short">{item.short}</span>
               </NavLink>
             ))}
           </nav>
