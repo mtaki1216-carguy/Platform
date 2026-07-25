@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Card, Empty, Modal, Stat } from '../components/ui'
+import { Badge, Card, Empty, Modal } from '../components/ui'
 import { MaintenanceForm } from '../forms/MaintenanceForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
 import { formatDate, formatNumber, formatYen } from '../lib/format'
@@ -25,14 +25,6 @@ export function MaintenancePage() {
     }
     return map
   }, [expenses])
-
-  const latestOdometer = useMemo(() => {
-    const withOdo = maintenance.filter((m) => m.odometer_km != null)
-    if (withOdo.length === 0) return null
-    return withOdo.reduce((best, m) => (m.odometer_km! > (best.odometer_km ?? 0) ? m : best), withOdo[0])
-  }, [maintenance])
-
-  const totalCost = maintenance.reduce((sum, m) => sum + (costOf.get(m.id) ?? 0), 0)
 
   const filtered = maintenance.filter((m) => {
     if (category && m.category !== category) return false
@@ -66,22 +58,6 @@ export function MaintenancePage() {
       </div>
 
       <div className="stack">
-        <div className="grid grid--stats">
-          <Stat
-            label="現在の走行距離"
-            value={
-              latestOdometer?.odometer_km != null ? `${formatNumber(latestOdometer.odometer_km)} km` : '—'
-            }
-            note={
-              latestOdometer
-                ? `${formatDate(latestOdometer.performed_on)} の記録時点`
-                : '走行距離を入力すると表示されます'
-            }
-          />
-          <Stat label="整備記録" value={`${maintenance.length} 件`} />
-          <Stat label="整備にかかった費用" value={formatYen(totalCost)} note="支出として登録された分の合計" />
-        </div>
-
         <Card
           title="記録一覧"
           subtitle={`${filtered.length}件`}
