@@ -10,6 +10,7 @@ import {
   byCategory,
   expenseFacts,
   monthlySeries,
+  settlementPlan,
   summarize,
   unassignedCount,
   type SprintTotals,
@@ -218,6 +219,10 @@ export function BudgetPage() {
           ) : null}
         </Card>
 
+        {selected.isOpen ? (
+          <SettlementPlanCard summary={scoped.summary} closingBalance={selected.closingBalance} />
+        ) : null}
+
         <Card
           title="月ごとの収支"
           subtitle="このスプリント内。支出は口座から実際に出た額（立替は精算した月に計上）"
@@ -263,6 +268,135 @@ export function BudgetPage() {
         </Modal>
       ) : null}
     </>
+  )
+}
+
+/**
+ * スプリントを終わらせるための精算プラン。
+ * 「チーム残高がプラス」かつ「全員の負担が均一」に到達するために、
+ * 誰にいくら返金し、誰からいくら集めればよいかを1人1行で出す。
+ */
+function SettlementPlanCard({
+  summary,
+  closingBalance,
+}: {
+  summary: Summary
+  closingBalance: number
+}) {
+  // 既定は「使い切って0円にする」。残したい額があれば書き換える
+  const [target, setTarget] = useState('0')
+  const targetBalance = Math.round(Number(target) || 0)
+  const plan = settlementPlan(summary, closingBalance, targetBalance)
+
+  if (plan.members.length === 0) return null
+
+  const spread =
+    Math.max(...plan.members.map((m) => m.finalBurden)) -
+    Math.min(...plan.members.map((m) => m.finalBurden))
+
+  return (
+    <Card
+      title="精算プラン"
+      subtitle="スプリントを終了するための入金・返金。全員の負担が同じ額に揃います"
+      actions={
+        <div className="toolbar">
+          <label className="settle-target">
+            <span>終了時に残すチーム残高</span>
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              inputMode="numeric"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+            />
+          </label>
+        </div>
+      }
+      flush
+    >
+      <div style={{ padding: '14px 18px 0' }}>
+        {!plan.targetIsPositive ? (
+          <Banner tone="critical">
+            <strong>残すチーム残高がマイナスです。</strong>{' '}
+            終了条件（残高がプラス）を満たしません。0以上の額を入れてください。
+          </Banner>
+        ) : (
+          <Banner tone="info">
+            この通りにやり取りすると、<strong>全員の負担が {formatYen(plan.burdenPerMember)} に揃い</strong>
+            、チーム残高は <strong>{formatYen(plan.targetBalance)}</strong> になります。
+            立替はすべて精算済みになります。
+            {spread > 0 ? '（端数の関係で1円だけ差が出る人がいます）' : ''}
+          </Banner>
+        )}
+      </div>
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>メンバー</th>
+              <th className="num">納めた会費</th>
+              <th className="num">返す立替</th>
+              <th className="num">会費の調整</th>
+              <th className="num">やり取り</th>
+              <th className="num">精算後の負担</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.members.map((m) => (
+              <tr key={m.member.id}>
+                <td className="nowrap">{m.member.name}</td>
+                <td className="num">{formatYen(m.feesPaid)}</td>
+                <td className="num">{m.unsettled > 0 ? formatYen(m.unsettled) : '—'}</td>
+                {/* 符号だけで向きは読める。色は「やり取り」列に集中させる */}
+                <td className="num">
+                  {m.adjustment === 0 ? '—' : formatYenSigned(m.adjustment)}
+                </td>
+                <td className="num">
+                  {m.transfer === 0 ? (
+                    <span style={{ color: 'var(--ink-muted)' }}>やり取りなし</span>
+                  ) : m.transfer > 0 ? (
+                    <span className="settle-amount settle-amount--out">
+                      {formatYen(m.transfer)} を返金
+                    </span>
+                  ) : (
+                    <span className="settle-amount settle-amount--in">
+                      {formatYen(-m.transfer)} を集金
+                    </span>
+                  )}
+                </td>
+                <td className="num">{formatYen(m.finalBurden)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={4}>チームから返金する合計</td>
+              <td className="num">{formatYen(plan.payOutTotal)}</td>
+              <td className="num" />
+            </tr>
+            <tr>
+              <td colSpan={4}>チームが集金する合計</td>
+              <td className="num">{formatYen(plan.collectTotal)}</td>
+              <td className="num" />
+            </tr>
+            <tr>
+              <td colSpan={4}>精算後のチーム残高</td>
+              <td className={`num ${plan.targetBalance < 0 ? 'value-bad' : ''}`}>
+                {formatYen(closingBalance - plan.payOutTotal + plan.collectTotal)}
+              </td>
+              <td className="num" />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div style={{ padding: '14px 18px', fontSize: 12.5, color: 'var(--ink-muted)' }}>
+        「やり取り」は立替の返金と会費の調整を相殺した金額です。1人につき1回の振込で済みます。
+        実際に振り込んだら、支出一覧で立替を「精算する」にし、会費の追加・返金を収入／支出として登録してください。
+      </div>
+    </Card>
   )
 }
 

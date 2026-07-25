@@ -345,6 +345,134 @@ export function unassignedCount(incomes: Income[], expenses: Expense[]): number 
   )
 }
 
+/**
+ * ── スプリントを終わらせるための精算プラン ──────────────────────────
+ *
+ *  終了条件を「チーム残高がプラス」かつ「全員の負担が均一」と定義して、
+ *  そこに到達するために誰がいくら払う／受け取るかを逆算する。
+ *
+ *  ある人の負担 = 納めた会費 + まだ返してもらっていない立替
+ *  立替を全額返せば負担から消えるので、精算後に人ごとの差を作るのは
+ *  会費だけになる。つまり「会費の追加徴収・返金」で負担を揃えられる。
+ *
+ *    目標残高 T、現在の残高 C、未精算の合計 U、会費合計 F、人数 n として
+ *      精算後の残高 = C − U + Σaᵢ = T   →   Σaᵢ = T − C + U
+ *      全員の負担を等しく B にする      →   aᵢ = B − 会費ᵢ
+ *      2式から                          B = (T − C + U + F) ÷ n
+ *
+ *  aᵢ は「追加で払う会費（＋）／返金される会費（−）」。
+ *  実際の振込は立替の返金と相殺して1人1回にまとめる（transfer）。
+ * ────────────────────────────────────────────────────────────────────────
+ */
+export interface MemberSettlement {
+  member: Member
+  /** このスプリントで納めた会費 */
+  feesPaid: number
+  /** 返してもらう立替（未精算分） */
+  unsettled: number
+  /** 精算前の負担 = feesPaid + unsettled */
+  currentBurden: number
+  /** 会費の調整。+ = 追加で払う / − = 返金される */
+  adjustment: number
+  /** 立替の返金と相殺した実際のやり取り。+ = チームから受け取る / − = チームに払う */
+  transfer: number
+  /** 精算後の負担（全員ほぼ同額になる） */
+  finalBurden: number
+}
+
+export interface SettlementPlan {
+  /** 終了時に残したいチーム残高 */
+  targetBalance: number
+  /** いまの残高（このスプリント時点） */
+  closingBalance: number
+  unsettledTotal: number
+  /** 会費調整の合計。+ = チーム口座に入る */
+  adjustmentTotal: number
+  /** チームから出ていく合計（立替返金 + 会費返金） */
+  payOutTotal: number
+  /** チームに入ってくる合計（追加徴収） */
+  collectTotal: number
+  /** 精算後に1人が負担する額 */
+  burdenPerMember: number
+  members: MemberSettlement[]
+  /** 目標残高が0以上か（チーム残高がプラスという終了条件） */
+  targetIsPositive: boolean
+  /** 目標を満たすのに追加徴収が必要か */
+  needsCollection: boolean
+}
+
+export function settlementPlan(
+  summary: Summary,
+  closingBalance: number,
+  targetBalance: number,
+): SettlementPlan {
+  const rows = summary.byMember
+  const n = rows.length
+
+  if (n === 0) {
+    return {
+      targetBalance,
+      closingBalance,
+      unsettledTotal: summary.unsettledTotal,
+      adjustmentTotal: 0,
+      payOutTotal: 0,
+      collectTotal: 0,
+      burdenPerMember: 0,
+      members: [],
+      targetIsPositive: targetBalance >= 0,
+      needsCollection: false,
+    }
+  }
+
+  // 会費調整の合計。これだけ口座の増減が要る
+  const need = targetBalance - closingBalance + summary.unsettledTotal
+  const feesTotal = rows.reduce((s, r) => s + r.feesPaid, 0)
+  const burdenExact = (need + feesTotal) / n
+
+  // 1円単位に丸めても合計が need とぴったり合うようにする（最大剰余法）。
+  // 端数を切り捨てただけだと数円ずれて、残高が目標に届かない。
+  const raw = rows.map((r) => burdenExact - r.feesPaid)
+  const floored = raw.map((v) => Math.floor(v))
+  let remainder = Math.round(need - floored.reduce((s, v) => s + v, 0))
+
+  const order = raw
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac)
+  const adjustments = [...floored]
+  for (const { i } of order) {
+    if (remainder <= 0) break
+    adjustments[i] += 1
+    remainder -= 1
+  }
+
+  const settlements = rows.map<MemberSettlement>((r, i) => {
+    const adjustment = adjustments[i]
+    return {
+      member: r.member,
+      feesPaid: r.feesPaid,
+      unsettled: r.unsettled,
+      currentBurden: r.feesPaid + r.unsettled,
+      adjustment,
+      // 立替の返金（受取）と会費調整を相殺して、1人1回のやり取りにする
+      transfer: r.unsettled - adjustment,
+      finalBurden: r.feesPaid + adjustment,
+    }
+  })
+
+  return {
+    targetBalance,
+    closingBalance,
+    unsettledTotal: summary.unsettledTotal,
+    adjustmentTotal: settlements.reduce((s, m) => s + m.adjustment, 0),
+    payOutTotal: settlements.filter((m) => m.transfer > 0).reduce((s, m) => s + m.transfer, 0),
+    collectTotal: settlements.filter((m) => m.transfer < 0).reduce((s, m) => s - m.transfer, 0),
+    burdenPerMember: Math.round(burdenExact),
+    members: settlements,
+    targetIsPositive: targetBalance >= 0,
+    needsCollection: settlements.some((m) => m.transfer < 0),
+  }
+}
+
 /** そのレースに紐づく支出の合計 */
 export function raceSpend(expenses: Expense[], raceId: UUID, asOf: string = today()): number {
   return sum(
