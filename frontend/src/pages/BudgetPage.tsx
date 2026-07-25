@@ -338,7 +338,6 @@ function SettlementPlanCard({
               <th>メンバー</th>
               <th className="num">納めた会費</th>
               <th className="num">返す立替</th>
-              <th className="num">会費の調整</th>
               <th className="num">やり取り</th>
               <th className="num">精算後の負担</th>
             </tr>
@@ -349,10 +348,6 @@ function SettlementPlanCard({
                 <td className="nowrap">{m.member.name}</td>
                 <td className="num">{formatYen(m.feesPaid)}</td>
                 <td className="num">{m.unsettled > 0 ? formatYen(m.unsettled) : '—'}</td>
-                {/* 符号だけで向きは読める。色は「やり取り」列に集中させる */}
-                <td className="num">
-                  {m.adjustment === 0 ? '—' : formatYenSigned(m.adjustment)}
-                </td>
                 <td className="num">
                   {m.transfer === 0 ? (
                     <span style={{ color: 'var(--ink-muted)' }}>やり取りなし</span>
@@ -372,17 +367,17 @@ function SettlementPlanCard({
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4}>チームから返金する合計</td>
+              <td colSpan={3}>チームから返金する合計</td>
               <td className="num">{formatYen(plan.payOutTotal)}</td>
               <td className="num" />
             </tr>
             <tr>
-              <td colSpan={4}>チームが集金する合計</td>
+              <td colSpan={3}>チームが集金する合計</td>
               <td className="num">{formatYen(plan.collectTotal)}</td>
               <td className="num" />
             </tr>
             <tr>
-              <td colSpan={4}>精算後のチーム残高</td>
+              <td colSpan={3}>精算後のチーム残高</td>
               <td className={`num ${plan.targetBalance < 0 ? 'value-bad' : ''}`}>
                 {formatYen(closingBalance - plan.payOutTotal + plan.collectTotal)}
               </td>
