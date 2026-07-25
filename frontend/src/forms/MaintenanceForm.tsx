@@ -42,11 +42,15 @@ export function MaintenanceForm({
   const { busy, error, handle } = useSubmit(async () => {
     if (!title.trim()) throw new Error('整備内容を入力してください')
 
+    const odometerKm = nullableInt(odometer)
+    if (odometerKm === null) throw new Error('走行距離を入力してください')
+    if (odometerKm < 0) throw new Error('走行距離は0km以上で入力してください')
+
     const row = {
       performed_on: performedOn,
       category,
       title: title.trim(),
-      odometer_km: nullableInt(odometer),
+      odometer_km: odometerKm,
       detail: nullable(detail),
     }
 
@@ -92,6 +96,7 @@ export function MaintenanceForm({
 
         <Field
           label="走行距離（km）"
+          required
           hint={lastOdometer != null ? `前回の記録は ${lastOdometer.toLocaleString('ja-JP')} km` : undefined}
         >
           <input
@@ -101,6 +106,7 @@ export function MaintenanceForm({
             inputMode="numeric"
             value={odometer}
             onChange={(e) => setOdometer(e.target.value)}
+            required
           />
         </Field>
 
