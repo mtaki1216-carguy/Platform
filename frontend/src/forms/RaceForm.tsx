@@ -25,7 +25,7 @@ export function RaceForm({ initial, onDone }: { initial?: Race; onDone: () => vo
     if (!startsOn) throw new Error('開催日を入力してください')
     if (endsOn && endsOn < startsOn) throw new Error('最終日は開催日以降にしてください')
     if (entryOpensOn && entryDeadline && entryDeadline < entryOpensOn) {
-      throw new Error('申込締切は受付開始日以降にしてください')
+      throw new Error('申込締切は申込開始日以降にしてください')
     }
 
     const fee = entryFee.trim() === '' ? 0 : Math.round(Number(entryFee))
@@ -86,7 +86,7 @@ export function RaceForm({ initial, onDone }: { initial?: Race; onDone: () => vo
           <input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
         </Field>
 
-        <Field label="申込受付開始日">
+        <Field label="申込開始日">
           <input type="date" value={entryOpensOn} onChange={(e) => setEntryOpensOn(e.target.value)} />
         </Field>
 

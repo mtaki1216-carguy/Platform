@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Empty, Modal, Stat } from '../components/ui'
+import { Badge, Banner, Card, Empty, Modal } from '../components/ui'
 import { BalanceChart } from '../charts/BalanceChart'
 import { MonthlyBars } from '../charts/MonthlyBars'
 import { IncomeForm } from '../forms/IncomeForm'
@@ -15,15 +15,10 @@ import {
   type Income,
 } from '../lib/types'
 
-const INCOME_COLOR = '#2a78d6'
-const EXPENSE_COLOR = '#eb6834'
-
 export function BudgetPage() {
   const { summary, monthly, expenses } = useTeamData()
   const [dialog, setDialog] = useState<'income' | 'expense' | null>(null)
   const { selfId } = useSelfMember()
-
-  const owed = summary.byMember.filter((m) => m.unsettled > 0)
 
   return (
     <>
@@ -46,40 +41,6 @@ export function BudgetPage() {
       </div>
 
       <div className="stack">
-        <div className="grid grid--hero">
-          <Stat
-            hero
-            label="チーム残高"
-            value={formatYen(summary.teamBalance)}
-            tone={summary.teamBalance < 0 ? 'bad' : undefined}
-            note={
-              summary.unsettledTotal > 0
-                ? `未精算の立替 ${formatYen(summary.unsettledTotal)} を精算すると ${formatYen(summary.projectedBalance)}`
-                : '未精算の立替はありません'
-            }
-          />
-          <div className="grid grid--stats">
-            <Stat
-              label="収入 累計"
-              swatch={INCOME_COLOR}
-              value={formatYen(summary.totalIncome)}
-              note="会費・スポンサーなど"
-            />
-            <Stat
-              label="支出 累計"
-              swatch={EXPENSE_COLOR}
-              value={formatYen(summary.totalExpense)}
-              note={`口座払い ${formatYen(summary.paidFromTeamAccount)} ／ 立替 ${formatYen(summary.totalExpense - summary.paidFromTeamAccount)}`}
-            />
-            <Stat
-              label="未精算の立替"
-              value={formatYen(summary.unsettledTotal)}
-              tone={summary.unsettledTotal > 0 ? 'bad' : undefined}
-              note={owed.length > 0 ? `${owed.length}名に返金待ち` : 'すべて精算済み'}
-            />
-          </div>
-        </div>
-
         {summary.projectedBalance < 0 ? (
           <Banner tone="critical">
             <strong>未精算の立替を全額返すと残高がマイナスになります。</strong>{' '}

@@ -679,6 +679,18 @@ tbody tr:hover {
   margin-top: 1px;
 }
 
+/*
+ * .sub は .value-bad より後に定義されるため、同じ詳細度だと灰色に打ち消される。
+ * 補助行で状態色を出したいときのために詳細度を上げておく。
+ */
+.sub.value-bad {
+  color: var(--critical);
+}
+
+.sub.value-good {
+  color: var(--good-ink);
+}
+
 tfoot td {
   padding: 11px 14px;
   border-top: 1px solid var(--border-strong);

@@ -18,7 +18,7 @@ import {
 /** 「まだ申し込んでいない＝これから動く必要がある」ステータス */
 const OPEN_STATUSES: RaceStatus[] = ['considering', 'planned']
 
-/** 受付開始が「近い」と見なす日数 */
+/** 申込開始が「近い」と見なす日数 */
 const OPENING_SOON_DAYS = 14
 
 export function RacesPage() {
@@ -42,8 +42,8 @@ export function RacesPage() {
   }, [races])
 
   /**
-   * 申込受付がこれから始まるレース。
-   * 受付開始日が今日以降で、2週間以内に来るもの（開始済みのものは含めない）。
+   * 申込がこれから始まるレース。
+   * 申込開始日が今日以降で、2週間以内に来るもの（開始済みのものは含めない）。
    */
   const openingSoon = races
     .filter((r) => r.entry_opens_on)
@@ -80,7 +80,7 @@ export function RacesPage() {
       <div className="page-head">
         <div>
           <h1>レース管理</h1>
-          <p>出場予定レースの日程・参加費・申込締切と、いま各レースがどこまで進んでいるかを一覧で確認します。</p>
+          <p>出場予定レースの日程・参加費・申込開始日と、いま各レースがどこまで進んでいるかを一覧で確認します。</p>
         </div>
         <button className="btn btn--primary" onClick={() => setCreating(true)}>
           レースを登録
@@ -93,17 +93,17 @@ export function RacesPage() {
             label="申込開始日が近いレース"
             value={`${openingSoon.length} 件`}
             tone={openingSoon.length > 0 ? 'bad' : undefined}
-            note={`受付開始まで${OPENING_SOON_DAYS}日以内`}
+            note={`申込開始まで${OPENING_SOON_DAYS}日以内`}
           />
         </div>
 
         {openingSoon.length > 0 ? (
           <Banner tone="info">
-            <strong>もうすぐ申込受付が始まります。</strong>
+            <strong>もうすぐ申込が始まります。</strong>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
               {openingSoon.map((r) => (
                 <li key={r.id}>
-                  {r.name} — 受付開始 {formatDate(r.entry_opens_on)}（
+                  {r.name} — 申込開始 {formatDate(r.entry_opens_on)}（
                   {formatRelativeDays(r.entry_opens_on)}）
                 </li>
               ))}
@@ -225,7 +225,7 @@ function RaceRows({ races, onEdit, onDelete, onStatus, onParticipants, onPayFee 
           <tr>
             <th className="col-title">レース</th>
             <th>開催日</th>
-            <th>申込締切</th>
+            <th>申込開始</th>
             <th>申込状況</th>
             <th className="num">参加費</th>
             <th>参加メンバー</th>
@@ -236,9 +236,10 @@ function RaceRows({ races, onEdit, onDelete, onStatus, onParticipants, onPayFee 
           {races.map((r) => {
             const spend = raceSpend(expenses, r.id)
             const crew = participants.filter((p) => p.race_id === r.id)
-            const deadlineDays = r.entry_deadline ? daysFromToday(r.entry_deadline) : null
-            const deadlineUrgent =
-              deadlineDays !== null && deadlineDays <= 14 && OPEN_STATUSES.includes(r.status)
+            // 申込開始が間近なら、その行だけ日付を目立たせる
+            const openingDays = r.entry_opens_on ? daysFromToday(r.entry_opens_on) : null
+            const openingSoon =
+              openingDays !== null && openingDays >= 0 && openingDays <= OPENING_SOON_DAYS
 
             return (
               <tr key={r.id}>
@@ -258,19 +259,16 @@ function RaceRows({ races, onEdit, onDelete, onStatus, onParticipants, onPayFee 
                   <span className="sub">{formatRelativeDays(r.starts_on)}</span>
                 </td>
                 <td className="nowrap">
-                  {r.entry_deadline ? (
+                  {r.entry_opens_on ? (
                     <>
-                      {formatDate(r.entry_deadline)}
-                      <span className={`sub${deadlineUrgent ? ' value-bad' : ''}`}>
-                        {formatRelativeDays(r.entry_deadline)}
+                      {formatDate(r.entry_opens_on)}
+                      <span className={`sub${openingSoon ? ' value-bad' : ''}`}>
+                        {formatRelativeDays(r.entry_opens_on)}
                       </span>
                     </>
                   ) : (
                     '—'
                   )}
-                  {r.entry_opens_on ? (
-                    <span className="sub">受付開始 {formatDate(r.entry_opens_on)}</span>
-                  ) : null}
                 </td>
                 <td className="nowrap">
                   {/* 一覧のまま状況を進められるようにする。

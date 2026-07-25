@@ -151,10 +151,11 @@ export function Banner({
   tone: 'info' | 'warning' | 'critical'
   children: ReactNode
 }) {
-  const icon = tone === 'critical' ? '⚠' : tone === 'warning' ? '⚠' : 'ℹ'
+  // 警告・エラーは記号で目を引かせる。お知らせ（info）は文面で足りるので付けない
+  const icon = tone === 'info' ? null : '⚠'
   return (
     <div className={`banner banner--${tone}`}>
-      <span aria-hidden="true">{icon}</span>
+      {icon ? <span aria-hidden="true">{icon}</span> : null}
       <div>{children}</div>
     </div>
   )

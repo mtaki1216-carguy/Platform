@@ -29,7 +29,7 @@ create table if not exists public.races (
   starts_on      date    not null,                 -- 決勝日 / 開催初日
   ends_on        date,                             -- 複数日開催の最終日（単日なら null）
   entry_fee      integer not null default 0 check (entry_fee >= 0),
-  entry_opens_on date,                             -- 申込受付開始日
+  entry_opens_on date,                             -- 申込開始日
   entry_deadline date,                             -- 申込締切日
   applied_on     date,                             -- 実際に申し込んだ日
   status         text    not null default 'considering'
