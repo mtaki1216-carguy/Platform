@@ -55,7 +55,7 @@ export function MembersPage() {
     }
     if (
       !window.confirm(
-        `${m.name} を削除します。\n会費や整備記録は残りますが、納入者・作業者の表示は「（削除済み）」になります。`,
+        `${m.name} を削除します。\n会費の記録は残りますが、納入者の表示は「（削除済み）」になります。`,
       )
     ) {
       return
@@ -75,7 +75,7 @@ export function MembersPage() {
           <h1>メンバー</h1>
           <p>
             チーム全員が同じアカウントでログインするため、この端末を使っているのが誰かを設定しておくと、
-            立替者や作業者の入力が省けます。
+            立替者の入力が省けます。
           </p>
         </div>
         <button className="btn btn--primary" onClick={() => setAdding(true)}>

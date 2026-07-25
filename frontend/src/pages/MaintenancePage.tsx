@@ -1,20 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Empty, Modal, Stat } from '../components/ui'
+import { Badge, Card, Empty, Modal, Stat } from '../components/ui'
 import { MaintenanceForm } from '../forms/MaintenanceForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
-import {
-  daysFromToday,
-  formatDate,
-  formatNumber,
-  formatRelativeDays,
-  formatYen,
-} from '../lib/format'
+import { formatDate, formatNumber, formatYen } from '../lib/format'
 import { MAINTENANCE_CATEGORIES, type MaintenanceRecord } from '../lib/types'
 
 export function MaintenancePage() {
-  const { maintenance, expenses, races, memberName, remove } = useTeamData()
+  const { maintenance, expenses, remove } = useTeamData()
   const { selfId } = useSelfMember()
 
   const [creating, setCreating] = useState(false)
@@ -40,23 +34,11 @@ export function MaintenancePage() {
 
   const totalCost = maintenance.reduce((sum, m) => sum + (costOf.get(m.id) ?? 0), 0)
 
-  /** 次回交換の目安が近い／過ぎているもの */
-  const dueSoon = useMemo(() => {
-    const currentKm = latestOdometer?.odometer_km ?? null
-    return maintenance
-      .filter((m) => {
-        const byDate = m.next_due_on != null && daysFromToday(m.next_due_on) <= 30
-        const byKm = m.next_due_km != null && currentKm != null && currentKm >= m.next_due_km - 500
-        return byDate || byKm
-      })
-      .sort((a, b) => (a.next_due_on ?? '9999').localeCompare(b.next_due_on ?? '9999'))
-  }, [maintenance, latestOdometer])
-
   const filtered = maintenance.filter((m) => {
     if (category && m.category !== category) return false
     if (query) {
       const q = query.toLowerCase()
-      const haystack = `${m.title} ${m.detail ?? ''} ${m.shop ?? ''}`.toLowerCase()
+      const haystack = `${m.title} ${m.detail ?? ''}`.toLowerCase()
       if (!haystack.includes(q)) return false
     }
     return true
@@ -98,29 +80,7 @@ export function MaintenancePage() {
           />
           <Stat label="整備記録" value={`${maintenance.length} 件`} />
           <Stat label="整備にかかった費用" value={formatYen(totalCost)} note="支出として登録された分の合計" />
-          <Stat
-            label="交換時期が近い項目"
-            value={`${dueSoon.length} 件`}
-            tone={dueSoon.length > 0 ? 'bad' : undefined}
-            note="日付が30日以内、または残り500km以下"
-          />
         </div>
-
-        {dueSoon.length > 0 ? (
-          <Banner tone="warning">
-            <strong>交換・点検時期が近い項目があります。</strong>
-            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-              {dueSoon.map((m) => (
-                <li key={m.id}>
-                  {m.title} —{' '}
-                  {m.next_due_on ? `${formatDate(m.next_due_on)}（${formatRelativeDays(m.next_due_on)}）` : null}
-                  {m.next_due_on && m.next_due_km ? ' / ' : null}
-                  {m.next_due_km ? `${formatNumber(m.next_due_km)} km` : null}
-                </li>
-              ))}
-            </ul>
-          </Banner>
-        ) : null}
 
         <Card
           title="記録一覧"
@@ -130,7 +90,7 @@ export function MaintenancePage() {
             <div className="toolbar">
               <input
                 type="text"
-                placeholder="内容・部品・ショップ"
+                placeholder="内容・部品で検索"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -150,7 +110,7 @@ export function MaintenancePage() {
               条件を変えるか、「整備を記録」から登録してください。
             </Empty>
           ) : (
-            <div className="table-scroll table-scroll--wide">
+            <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -158,15 +118,12 @@ export function MaintenancePage() {
                     <th className="num">走行距離</th>
                     <th>区分</th>
                     <th className="col-title">整備内容</th>
-                    <th>作業者 / 場所</th>
-                    <th>次回目安</th>
                     <th className="num">費用</th>
                     <th className="col-actions" />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((m) => {
-                    const race = races.find((r) => r.id === m.race_id)
                     const cost = costOf.get(m.id)
                     return (
                       <tr key={m.id}>
@@ -180,25 +137,6 @@ export function MaintenancePage() {
                         <td>
                           {m.title}
                           {m.detail ? <span className="sub">{m.detail}</span> : null}
-                          {race ? <span className="sub">🏁 {race.name}</span> : null}
-                        </td>
-                        <td>
-                          {m.performed_by ? memberName(m.performed_by) : '—'}
-                          {m.shop ? <span className="sub">{m.shop}</span> : null}
-                        </td>
-                        <td className="nowrap">
-                          {m.next_due_on ? (
-                            <span>
-                              {formatDate(m.next_due_on)}
-                              <span className="sub">{formatRelativeDays(m.next_due_on)}</span>
-                            </span>
-                          ) : null}
-                          {m.next_due_km != null ? (
-                            <span className={m.next_due_on ? 'sub' : undefined}>
-                              {formatNumber(m.next_due_km)} km
-                            </span>
-                          ) : null}
-                          {!m.next_due_on && m.next_due_km == null ? '—' : null}
                         </td>
                         <td className="num">
                           {cost != null ? (
@@ -250,7 +188,6 @@ export function MaintenancePage() {
               category: 'maintenance',
               description: addingCostTo.title,
               maintenanceId: addingCostTo.id,
-              raceId: addingCostTo.race_id ?? undefined,
             }}
             onDone={() => setAddingCostTo(null)}
           />

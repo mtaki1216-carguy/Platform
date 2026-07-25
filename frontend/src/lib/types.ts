@@ -74,7 +74,7 @@ export const MAINTENANCE_CATEGORIES = {
   electrical: '電装',
   cooling: '冷却系',
   body: '外装・ボディ',
-  fluid: 'オイル・フルード',
+  fluid: 'オイル交換',
   inspection: '点検・車検',
   other: 'その他',
 } as const

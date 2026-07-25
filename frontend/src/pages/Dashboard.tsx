@@ -169,7 +169,6 @@ export function Dashboard() {
                       <th>実施日</th>
                       <th>内容</th>
                       <th className="num">走行距離</th>
-                      <th>作業者</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -183,7 +182,6 @@ export function Dashboard() {
                         <td className="num">
                           {m.odometer_km != null ? `${formatNumber(m.odometer_km)} km` : '—'}
                         </td>
-                        <td className="nowrap">{m.performed_by ? memberName(m.performed_by) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

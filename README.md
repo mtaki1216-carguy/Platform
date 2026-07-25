@@ -5,7 +5,7 @@
 | 機能 | 内容 |
 | --- | --- |
 | ① 予算管理 | 収入（会費・スポンサー）と支出（チーム口座払い／個人立替）から、**チーム残高をリアルタイムに表示**。個人立替は精算状況まで管理し、「誰にいくら返すべきか」が一覧で分かります。 |
-| ② 整備記録 | 整備内容を実施日・走行距離とあわせてデータベースに保存。次回交換の目安（日付／km）を持たせ、時期が近いものを警告します。費用は支出として①に連動。 |
+| ② 整備記録 | 整備内容を実施日・走行距離・区分とあわせてデータベースに保存。費用は支出として①に連動。 |
 | ③ レース管理 | 出場予定レースの日程・参加費・申込開始日／締切日／申込日を保存。**各レースの申込状況が一覧で一目で分かり**、その場で状況を進められます。 |
 
 構成は **フロントエンド（React）とデータベース（Supabase）を分離**しています。どちらも無料枠のオープンサービスだけで動きます。
@@ -152,7 +152,7 @@ npm run dev      # http://localhost:5173
 | `members` | メンバー | `name`, `sort_order` |
 | `incomes` | 収入 | `occurred_on`, `category`(会費/スポンサー/繰越/返金), `member_id`, `amount` |
 | `expenses` | 支出（金額の唯一の置き場） | `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id` |
-| `maintenance_records` | 整備記録 | `performed_on`, `odometer_km`, `category`, `title`, `detail`, `performed_by`, `shop`, `next_due_on`, `next_due_km`, `race_id` |
+| `maintenance_records` | 整備記録 | `performed_on`, `odometer_km`, `category`, `title`, `detail` |
 | `races` | レース | `name`, `circuit`, `starts_on`, `ends_on`, `entry_fee`, `entry_opens_on`, `entry_deadline`, `applied_on`, `status`, `fee_paid` |
 | `race_participants` | 参加メンバー | `race_id`, `member_id`, `role`(ドライバー/ピット/サポート) |
 
@@ -180,7 +180,7 @@ Supabase Realtime を使い、誰かが登録・変更すると**他の人の画
 ## メンバー画面の「自分」設定
 
 全員が同じアカウントでログインするため、誰が操作しているかはサーバー側では分かりません。
-**メンバー**画面で「自分」を選んでおくと、支出の立替者や整備の作業者の初期値になります
+**メンバー**画面で「自分」を選んでおくと、支出の立替者の初期値になります
 （この設定はそのブラウザにだけ保存されます）。
 
 ---
