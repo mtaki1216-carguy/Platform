@@ -85,11 +85,30 @@ npm run dev      # http://localhost:5173
 
 ### 5. Vercel に公開する
 
-1. [vercel.com](https://vercel.com) でこの GitHub リポジトリを **Import**。
-2. **Root Directory** に `frontend` を指定します（`frontend/vercel.json` が残りを設定します）。
-3. **Environment Variables** に手順3の4つを登録して Deploy。
+1. [vercel.com](https://vercel.com) に GitHub アカウントでログインし、**Add New → Project** からこの
+   リポジトリを **Import**。
+2. **Project Name** を決めます。これが URL になります
+   （例 `ge8-endurance` → `https://ge8-endurance.vercel.app`）。
+3. **Root Directory** に `frontend` を指定します。**ここが最も間違えやすい箇所です。**
+   ルートのままだと `package.json` が見つからずビルドが失敗します。
+   指定すると Framework は Vite と自動判定され、残りは `frontend/vercel.json` が設定します。
+4. **Environment Variables** に手順3の4つを登録します（`.env.local` は Vercel では読まれません）。
+5. **Deploy**。1〜2分で `https://<プロジェクト名>.vercel.app` が発行されます。
 
-以降は `main` への push で自動デプロイされます。5人には公開 URL と共通パスワードを共有すれば完了です。
+このリポジトリはブランチが1本だけで、それがデフォルトブランチなので、
+**push すればそのまま本番が更新されます**。main へのマージは不要です。
+
+公開後は、5人に **URL と共通パスワード**を伝えれば完了です。スマホのブラウザでもそのまま使えます
+（ホーム画面に追加しておくとアプリのように開けます）。
+
+#### 補足
+
+- **Supabase 側の追加設定は不要です。** メールリンクや OAuth を使わない
+  （パスワード認証のみ）ため、Site URL や Redirect URLs の登録は要りません。
+- **HTTPS は自動です。** 証明書の取得も更新も Vercel 側で行われます。
+- **Supabase の無料プロジェクトは、約1週間アクセスがないと自動停止します。**
+  停止するとログインできなくなりますが、ダッシュボードから復帰できます（データは消えません）。
+  シーズンオフに長く放置する場合は覚えておいてください。
 
 ---
 
