@@ -217,7 +217,14 @@ export function Dashboard() {
                   {expenses.slice(0, 8).map((e) => (
                     <tr key={e.id}>
                       <td className="nowrap">{formatDate(e.occurred_on)}</td>
-                      <td>{e.description}</td>
+                      <td>
+                        {e.description}
+                        {e.recurrence === 'monthly' ? (
+                          <span className="sub">
+                            <Badge tone="warning">固定費 毎月{e.payment_day}日</Badge>
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="nowrap">
                         {e.payer_type === 'team' ? (
                           <Badge tone="neutral">チーム口座</Badge>

@@ -8,6 +8,7 @@ import { ExpenseForm } from '../forms/ExpenseForm'
 import { CloseSprintForm } from '../forms/CloseSprintForm'
 import {
   byCategory,
+  expenseFacts,
   monthlySeries,
   summarize,
   unassignedCount,
@@ -519,7 +520,9 @@ function ExpenseTable({
     return true
   })
 
-  const total = filtered.reduce((sum, e) => sum + e.amount, 0)
+  // 固定費は今日までの回数ぶんが発生額。単発は1回分
+  const factsOf = new Map(filtered.map((e) => [e.id, expenseFacts(e, today())]))
+  const total = filtered.reduce((sum, e) => sum + (factsOf.get(e.id)?.accrued ?? e.amount), 0)
 
   async function onDelete(e: Expense) {
     if (!window.confirm(`「${e.description}」（${formatYen(e.amount)}）を削除します。`)) return
@@ -594,11 +597,25 @@ function ExpenseTable({
             <tbody>
               {filtered.map((e) => {
                 const race = races.find((r) => r.id === e.race_id)
+                const facts = factsOf.get(e.id)
+                const monthly = e.recurrence === 'monthly'
                 return (
                   <tr key={e.id}>
-                    <td className="nowrap">{formatDate(e.occurred_on)}</td>
+                    <td className="nowrap">
+                      {formatDate(e.occurred_on)}
+                      {monthly ? (
+                        <span className="sub">
+                          {e.recurrence_ends_on ? `〜 ${formatDate(e.recurrence_ends_on)}` : '〜 継続中'}
+                        </span>
+                      ) : null}
+                    </td>
                     <td>
                       {e.description}
+                      {monthly ? (
+                        <span className="sub">
+                          <Badge tone="warning">固定費 毎月{e.payment_day}日</Badge>
+                        </span>
+                      ) : null}
                       {race ? <span className="sub">🏁 {race.name}</span> : null}
                       {e.note ? <span className="sub">{e.note}</span> : null}
                     </td>
@@ -610,7 +627,14 @@ function ExpenseTable({
                         <Badge tone="info">{memberName(e.paid_by)} 立替</Badge>
                       )}
                     </td>
-                    <td className="num">{formatYen(e.amount)}</td>
+                    <td className="num">
+                      {formatYen(facts?.accrued ?? e.amount)}
+                      {monthly ? (
+                        <span className="sub" style={{ textAlign: 'right' }}>
+                          毎月 {formatYen(e.amount)} × {facts?.count ?? 0}回
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="nowrap">
                       {e.payer_type === 'team' ? (
                         <span style={{ color: 'var(--ink-muted)' }}>—</span>

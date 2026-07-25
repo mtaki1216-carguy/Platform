@@ -15,6 +15,7 @@ Platform/
 ├── supabase/
 │   ├── migrations/0001_init.sql   ← テーブル・RLS・Realtime の定義
 │   ├── migrations/0002_sprints.sql ← スプリント（予算の区切り）
+│   ├── migrations/0003_recurring_expenses.sql ← 固定費（毎月払い）
 │   ├── seed.sql                   ← メンバー5名の初期データ
 │   └── verify.sql                 ← セットアップが揃っているかの確認用
 └── frontend/                      ← React + TypeScript + Vite（Vercel にデプロイ）
@@ -35,7 +36,8 @@ Platform/
 1. [supabase.com](https://supabase.com) で無料アカウントを作り、新規プロジェクトを作成します。
    リージョンは **Northeast Asia (Tokyo)** が最も速いです。
 2. 左メニューの **SQL Editor** を開き、`supabase/migrations/0001_init.sql` の中身を全部貼り付けて **Run**。
-3. 続けて `supabase/migrations/0002_sprints.sql` を貼り付けて **Run**。
+3. 続けて `supabase/migrations/0002_sprints.sql`、`supabase/migrations/0003_recurring_expenses.sql`
+   を順に貼り付けて **Run**。
 4. 同じく `supabase/seed.sql` を貼り付けて **Run**（メンバー5名が登録されます）。
 5. 確認として `supabase/verify.sql` を貼り付けて **Run**。
    「判定」列がすべて `OK` になっていれば手順1・2は完了です。
@@ -136,6 +138,28 @@ npm run dev      # http://localhost:5173
 全部返した後に残る額を「精算後見込み残高」として出します。
 精算後がマイナスになる場合は画面上で警告が出ます。
 
+### 固定費（毎月払いの支出）
+
+支出は「単発」と「固定費（毎月）」から選べます。固定費で増える入力は
+**毎月の支払日**だけで、費目・金額・支払元などは単発と同じです。
+
+**毎月ぶんの行は作りません。** 1件の記録に毎月の支払日を持たせ、
+今日までに何回払ったかを計算します。行を自動生成する方式にすると、
+誰の端末がいつ生成するかで重複や抜けが起きるためです。結果として、
+
+- 一覧には固定費が1行だけ出て、金額は「今日までの発生額」（毎月 ¥35,000 × 2回 = ¥70,000）
+- 残高・月ごとの収支・費目別には、毎月の支払いが正しく1回ずつ計上される
+- 開始日より前の支払日、および今日より先の支払日は計上しない
+
+**支払日が31日など、その月に無い日は月末に丸めます**（1/31 → 2/28 → 3/31 → 4/30）。
+
+固定費を止めるときは **終了日** を入れます（任意）。空欄なら継続中として毎月増えていきます。
+終了日を入れれば、その日までの分だけが残り、過去の履歴は消えません。
+
+> 個人立替の固定費も登録できますが、**精算状況は1件単位でしか持てません**
+> （毎月ぶんを個別に精算済みにはできません）。精算済みにすると、それまでの
+> 各支払日に返金したものとして扱います。固定費はチーム口座払いにしておくのが素直です。
+
 ### スプリント（予算の区切り）
 
 予算はスプリント単位で管理します。区切るタイミングはチームが決めます
@@ -173,7 +197,7 @@ npm run dev      # http://localhost:5173
 | --- | --- | --- |
 | `members` | メンバー | `name`, `sort_order` |
 | `incomes` | 収入 | `sprint_id`, `occurred_on`, `category`(会費/スポンサー/繰越/返金), `member_id`, `amount` |
-| `expenses` | 支出（金額の唯一の置き場） | `sprint_id`, `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id` |
+| `expenses` | 支出（金額の唯一の置き場） | `sprint_id`, `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id`, `recurrence`(once/monthly), `payment_day`, `recurrence_ends_on` |
 | `sprints` | 予算の区切り | `name`(未入力可), `started_on`, `ended_on`(null=進行中), `note` |
 | `maintenance_records` | 整備記録 | `performed_on`, `odometer_km`, `category`, `title`, `detail` |
 | `races` | レース | `name`, `circuit`, `starts_on`, `ends_on`, `entry_fee`, `entry_opens_on`, `entry_deadline`, `applied_on`, `status`, `fee_paid` |
@@ -183,6 +207,8 @@ npm run dev      # http://localhost:5173
 
 - チーム口座払いに立替者や精算日は入らない／立替には必ず立替者が要る（`expenses_payer_consistency`）
 - 未精算なのに精算日が入っている状態を防ぐ（`expenses_reimbursed_consistency`）
+- 単発に支払日・終了日は入らない／固定費には必ず支払日が要る（`expenses_recurrence_consistency`）
+- 毎月の支払日は 1〜31（`expenses_payment_day_range`）、固定費の終了日は開始日以降
 - レースの最終日は開催日以降、申込締切は申込開始日以降
 - スプリントの終了日は開始日以降
 - **進行中のスプリントは常に1つだけ**（部分ユニークインデックス `sprints_single_open_idx`）。

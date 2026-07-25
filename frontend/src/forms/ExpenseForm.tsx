@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { Field } from '../components/ui'
 import { formatDateRange, today } from '../lib/format'
-import { EXPENSE_CATEGORIES, type Expense, type ExpenseCategory, type PayerType } from '../lib/types'
+import {
+  EXPENSE_CATEGORIES,
+  type Expense,
+  type ExpenseCategory,
+  type PayerType,
+  type Recurrence,
+} from '../lib/types'
 import { FormFooter, nullable, optionsFrom, useSubmit } from './formBits'
 
 /** 新規登録の初期値。他の画面から「この内容で支出を起こす」ときに使う */
@@ -45,13 +51,30 @@ export function ExpenseForm({
   const [raceId, setRaceId] = useState(initial?.race_id ?? preset?.raceId ?? '')
   const [note, setNote] = useState(initial?.note ?? '')
 
+  // 固定費は「毎月何日に払うか」だけが単発と違う（＋止めるための終了日）
+  const [recurrence, setRecurrence] = useState<Recurrence>(initial?.recurrence ?? 'once')
+  const [paymentDay, setPaymentDay] = useState(
+    initial?.payment_day != null ? String(initial.payment_day) : '',
+  )
+  const [endsOn, setEndsOn] = useState(initial?.recurrence_ends_on ?? '')
+
   const isAdvance = payerType === 'member'
+  const isMonthly = recurrence === 'monthly'
 
   const { busy, error, handle } = useSubmit(async () => {
     const value = Math.round(Number(amount))
     if (!Number.isFinite(value) || value <= 0) throw new Error('金額は1円以上で入力してください')
     if (!description.trim()) throw new Error('内容を入力してください')
     if (isAdvance && !paidBy) throw new Error('立替の場合は立替者を選んでください')
+
+    let day: number | null = null
+    if (isMonthly) {
+      day = Math.round(Number(paymentDay))
+      if (!Number.isFinite(day) || day < 1 || day > 31) {
+        throw new Error('毎月の支払日は1〜31で入力してください')
+      }
+      if (endsOn && endsOn < occurredOn) throw new Error('終了日は開始日以降にしてください')
+    }
 
     const row = {
       occurred_on: occurredOn,
@@ -66,6 +89,10 @@ export function ExpenseForm({
       race_id: raceId || null,
       maintenance_id: initial?.maintenance_id ?? preset?.maintenanceId ?? null,
       note: nullable(note),
+      // 単発に支払日・終了日は入らない（DB 側の制約と揃える）
+      recurrence,
+      payment_day: isMonthly ? day : null,
+      recurrence_ends_on: isMonthly ? nullable(endsOn) : null,
     }
 
     if (initial) {
@@ -82,9 +109,62 @@ export function ExpenseForm({
   return (
     <form onSubmit={handle}>
       <div className="form-grid">
-        <Field label="支払日" required>
+        <Field label="支出の種類" required wide>
+          <div className="radio-row">
+            <label className="radio-chip">
+              <input
+                type="radio"
+                name="recurrence"
+                checked={recurrence === 'once'}
+                onChange={() => setRecurrence('once')}
+              />
+              単発
+            </label>
+            <label className="radio-chip">
+              <input
+                type="radio"
+                name="recurrence"
+                checked={isMonthly}
+                onChange={() => setRecurrence('monthly')}
+              />
+              固定費（毎月）
+            </label>
+          </div>
+        </Field>
+
+        <Field
+          label={isMonthly ? '開始日' : '支払日'}
+          required
+          hint={isMonthly ? 'この日以降の支払日から計上します' : undefined}
+        >
           <input type="date" value={occurredOn} onChange={(e) => setOccurredOn(e.target.value)} required />
         </Field>
+
+        {isMonthly ? (
+          <>
+            <Field
+              label="毎月の支払日"
+              required
+              hint="31日など、その月に無い日は月末に丸めて計上します"
+            >
+              <input
+                type="number"
+                min={1}
+                max={31}
+                step={1}
+                inputMode="numeric"
+                value={paymentDay}
+                onChange={(e) => setPaymentDay(e.target.value)}
+                placeholder="例: 25"
+                required
+              />
+            </Field>
+
+            <Field label="終了日" hint="空欄なら継続中。止めたらこの日を入れます">
+              <input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+            </Field>
+          </>
+        ) : null}
 
         <Field label="費目" required>
           <select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
@@ -92,7 +172,7 @@ export function ExpenseForm({
           </select>
         </Field>
 
-        <Field label="金額（円）" required>
+        <Field label={isMonthly ? '毎月の金額（円）' : '金額（円）'} required>
           <input
             type="number"
             min={1}

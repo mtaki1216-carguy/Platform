@@ -1,4 +1,4 @@
-import { monthKey } from './format'
+import { monthKey, today } from './format'
 import type { Expense, Income, Member, Sprint, UUID } from './types'
 
 /**
@@ -18,11 +18,88 @@ import type { Expense, Income, Member, Sprint, UUID } from './types'
  * ────────────────────────────────────────────────────────────────────────
  */
 
-/** その支出でチーム口座から現金が出た日。まだ出ていなければ null */
-export function cashOutDate(expense: Expense): string | null {
-  if (expense.payer_type === 'team') return expense.occurred_on
-  if (expense.reimbursed) return expense.reimbursed_on ?? expense.occurred_on
-  return null
+/**
+ * ── 固定費（毎月払い）の扱い ─────────────────────────────────────────
+ *
+ *  固定費は「毎月ぶんの行」を作らず、1件の記録に毎月の支払日を持たせて、
+ *  今日までに何回払ったかをここで数える。行を自動生成すると、誰の端末が
+ *  いつ生成するかで重複や抜けが起きるため。
+ *
+ *  支払日が月末に無い日（31日など）の月は、その月の最終日に丸める。
+ * ────────────────────────────────────────────────────────────────────────
+ */
+
+/** 支出1件が生む「実際の支払い」を展開した姿。集計はすべてこれを通す */
+export interface ExpenseFacts {
+  /** 今日までに発生した回数（単発は常に1） */
+  count: number
+  /** 発生ベースの合計（amount × count） */
+  accrued: number
+  /** チーム口座から出た分（日付ごと） */
+  cashOut: Array<{ date: string; amount: number }>
+  /** まだ精算していない立替の合計 */
+  unsettled: number
+}
+
+export function expenseFacts(expense: Expense, asOf: string): ExpenseFacts {
+  const dates = paymentDates(expense, asOf)
+  const count = dates.length
+  const accrued = expense.amount * count
+
+  // チーム口座払いは支払日に、立替は精算してあればその日に口座から出る
+  if (expense.payer_type === 'team') {
+    return { count, accrued, cashOut: dates.map((date) => ({ date, amount: expense.amount })), unsettled: 0 }
+  }
+  if (expense.reimbursed) {
+    // 単発は精算日、固定費は毎月返している前提でその月の支払日に計上する
+    const dateOf = (d: string) =>
+      expense.recurrence === 'monthly' ? d : expense.reimbursed_on ?? expense.occurred_on
+    return {
+      count,
+      accrued,
+      cashOut: dates.map((d) => ({ date: dateOf(d), amount: expense.amount })),
+      unsettled: 0,
+    }
+  }
+  return { count, accrued, cashOut: [], unsettled: accrued }
+}
+
+/**
+ * その支出が「今日まで」に発生した支払日を列挙する。
+ * 単発なら occurred_on の1件だけ。
+ */
+export function paymentDates(expense: Expense, asOf: string): string[] {
+  if (expense.recurrence !== 'monthly' || expense.payment_day == null) {
+    return [expense.occurred_on]
+  }
+
+  const limit = expense.recurrence_ends_on && expense.recurrence_ends_on < asOf
+    ? expense.recurrence_ends_on
+    : asOf
+
+  const dates: string[] = []
+  let [year, month] = expense.occurred_on.split('-').map(Number)
+
+  // 上限を付けて、日付が壊れていても無限ループさせない（100年分）
+  for (let guard = 0; guard < 1200; guard += 1) {
+    const date = clampToMonth(year, month, expense.payment_day)
+    if (date > limit) break
+    // 開始日より前の支払いは数えない（初月の支払日が開始日より前のケース）
+    if (date >= expense.occurred_on) dates.push(date)
+    month += 1
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+  return dates
+}
+
+/** 支払日をその月に存在する日に丸める（2月31日 → 2月28日） */
+function clampToMonth(year: number, month: number, day: number): string {
+  const lastDay = new Date(year, month, 0).getDate()
+  const d = Math.min(day, lastDay)
+  return `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
 export interface MemberBalance {
@@ -56,33 +133,38 @@ export interface Summary {
   byMember: MemberBalance[]
 }
 
-export function summarize(incomes: Income[], expenses: Expense[], members: Member[]): Summary {
+export function summarize(
+  incomes: Income[],
+  expenses: Expense[],
+  members: Member[],
+  asOf: string = today(),
+): Summary {
+  const facts = expenses.map((e) => ({ e, f: expenseFacts(e, asOf) }))
+  const cashOutOf = (x: { f: ExpenseFacts }) => sum(x.f.cashOut, (c) => c.amount)
+
   const totalIncome = sum(incomes, (i) => i.amount)
-  const totalExpense = sum(expenses, (e) => e.amount)
+  const totalExpense = sum(facts, (x) => x.f.accrued)
 
   const paidFromTeamAccount = sum(
-    expenses.filter((e) => e.payer_type === 'team'),
-    (e) => e.amount,
+    facts.filter((x) => x.e.payer_type === 'team'),
+    cashOutOf,
   )
   const reimbursedTotal = sum(
-    expenses.filter((e) => e.payer_type === 'member' && e.reimbursed),
-    (e) => e.amount,
+    facts.filter((x) => x.e.payer_type === 'member'),
+    cashOutOf,
   )
-  const unsettledTotal = sum(
-    expenses.filter((e) => e.payer_type === 'member' && !e.reimbursed),
-    (e) => e.amount,
-  )
+  const unsettledTotal = sum(facts, (x) => x.f.unsettled)
 
   const teamBalance = totalIncome - paidFromTeamAccount - reimbursedTotal
 
   const byMember = members.map<MemberBalance>((member) => {
-    const advanced = expenses.filter((e) => e.payer_type === 'member' && e.paid_by === member.id)
-    const open = advanced.filter((e) => !e.reimbursed)
+    const advanced = facts.filter((x) => x.e.payer_type === 'member' && x.e.paid_by === member.id)
+    const open = advanced.filter((x) => x.f.unsettled > 0)
     return {
       member,
-      unsettled: sum(open, (e) => e.amount),
+      unsettled: sum(open, (x) => x.f.unsettled),
       unsettledCount: open.length,
-      advancedTotal: sum(advanced, (e) => e.amount),
+      advancedTotal: sum(advanced, (x) => x.f.accrued),
       feesPaid: sum(
         incomes.filter((i) => i.member_id === member.id && i.category === 'membership_fee'),
         (i) => i.amount,
@@ -118,14 +200,18 @@ export interface MonthlyPoint {
  * 月次の収支と残高推移。データがある最初の月から今月までを、
  * 動きのない月も 0 で埋めて連続させる（折れ線に穴を作らないため）。
  */
-export function monthlySeries(incomes: Income[], expenses: Expense[]): MonthlyPoint[] {
+export function monthlySeries(
+  incomes: Income[],
+  expenses: Expense[],
+  asOf: string = today(),
+): MonthlyPoint[] {
   const income = new Map<string, number>()
   const cashOut = new Map<string, number>()
 
   for (const i of incomes) add(income, monthKey(i.occurred_on), i.amount)
   for (const e of expenses) {
-    const date = cashOutDate(e)
-    if (date) add(cashOut, monthKey(date), e.amount)
+    // 固定費は毎月の支払いに展開されるので、月ごとに正しく積まれる
+    for (const c of expenseFacts(e, asOf).cashOut) add(cashOut, monthKey(c.date), c.amount)
   }
 
   const keys = [...income.keys(), ...cashOut.keys()].sort()
@@ -146,12 +232,13 @@ export function monthlySeries(incomes: Income[], expenses: Expense[]): MonthlyPo
 export function byCategory<T extends string>(
   expenses: Expense[],
   pick: (e: Expense) => T,
+  asOf: string = today(),
 ): Array<{ key: T; amount: number; count: number }> {
   const map = new Map<T, { amount: number; count: number }>()
   for (const e of expenses) {
     const key = pick(e)
     const current = map.get(key) ?? { amount: 0, count: 0 }
-    current.amount += e.amount
+    current.amount += expenseFacts(e, asOf).accrued
     current.count += 1
     map.set(key, current)
   }
@@ -205,26 +292,20 @@ export function sprintTotals(
   sprints: Sprint[],
   incomes: Income[],
   expenses: Expense[],
+  asOf: string = today(),
 ): SprintTotals[] {
   let running = 0
   return sortSprints(sprints).map((sprint, index) => {
     const si = incomes.filter((i) => i.sprint_id === sprint.id)
     const se = expenses.filter((e) => e.sprint_id === sprint.id)
+    const facts = se.map((e) => ({ e, f: expenseFacts(e, asOf) }))
+    const cashOutOf = (x: { f: ExpenseFacts }) => sum(x.f.cashOut, (c) => c.amount)
 
     const income = sum(si, (i) => i.amount)
-    const expense = sum(se, (e) => e.amount)
-    const paidFromTeamAccount = sum(
-      se.filter((e) => e.payer_type === 'team'),
-      (e) => e.amount,
-    )
-    const reimbursedTotal = sum(
-      se.filter((e) => e.payer_type === 'member' && e.reimbursed),
-      (e) => e.amount,
-    )
-    const unsettled = sum(
-      se.filter((e) => e.payer_type === 'member' && !e.reimbursed),
-      (e) => e.amount,
-    )
+    const expense = sum(facts, (x) => x.f.accrued)
+    const paidFromTeamAccount = sum(facts.filter((x) => x.e.payer_type === 'team'), cashOutOf)
+    const reimbursedTotal = sum(facts.filter((x) => x.e.payer_type === 'member'), cashOutOf)
+    const unsettled = sum(facts, (x) => x.f.unsettled)
     const cashOut = paidFromTeamAccount + reimbursedTotal
 
     const openingBalance = running
@@ -265,10 +346,10 @@ export function unassignedCount(incomes: Income[], expenses: Expense[]): number 
 }
 
 /** そのレースに紐づく支出の合計 */
-export function raceSpend(expenses: Expense[], raceId: UUID): number {
+export function raceSpend(expenses: Expense[], raceId: UUID, asOf: string = today()): number {
   return sum(
     expenses.filter((e) => e.race_id === raceId),
-    (e) => e.amount,
+    (e) => expenseFacts(e, asOf).accrued,
   )
 }
 

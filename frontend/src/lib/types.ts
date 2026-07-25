@@ -63,6 +63,14 @@ export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES
 /** team = チーム口座から直接支払い / member = メンバーの個人立替 */
 export type PayerType = 'team' | 'member'
 
+/** once = 単発 / monthly = 毎月払いの固定費 */
+export type Recurrence = 'once' | 'monthly'
+
+export const RECURRENCE_LABELS: Record<Recurrence, string> = {
+  once: '単発',
+  monthly: '固定費（毎月）',
+}
+
 export interface Expense {
   id: UUID
   sprint_id: UUID | null
@@ -78,6 +86,12 @@ export interface Expense {
   maintenance_id: UUID | null
   note: string | null
   created_at: string
+
+  recurrence: Recurrence
+  /** 毎月の支払日（1〜31）。monthly のときのみ入る */
+  payment_day: number | null
+  /** 固定費を止めた日。null なら継続中 */
+  recurrence_ends_on: ISODate | null
 }
 
 export const MAINTENANCE_CATEGORIES = {
