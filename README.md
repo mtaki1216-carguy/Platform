@@ -43,6 +43,13 @@ Platform/
    「判定」列がすべて `OK` になっていれば手順1・2は完了です。
    最下行に `VITE_TEAM_EMAIL` に入れる値も出ます。
 
+> **マイグレーションを追加したときは、必ず `supabase/migrations/` の未実行分を順に実行してください。**
+> 列が足りないまま使うと、登録時に
+> `Could not find the 'xxx' column of 'expenses' in the schema cache` というエラーになります。
+> `verify.sql` の「列:」で始まる行を見れば、どれが未実行か分かります。
+> 各マイグレーションの末尾には `notify pgrst, 'reload schema';` を入れてあるので、
+> 実行すれば API 側にもすぐ反映されます。
+
 ### 2. チーム共有アカウントを1つ作る
 
 ログインは「チーム共通パスワード」方式ですが、実体は **Supabase Auth の共有アカウント1つ**です。

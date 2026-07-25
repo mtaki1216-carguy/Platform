@@ -121,6 +121,28 @@ select 項目, 結果, 判定 from (
 
   union all
 
+  -- テーブルがあっても列が足りていないことがあるので、列の有無も見る。
+  -- 足りないと「Could not find the 'xxx' column」で登録に失敗する。
+  select 7.2, '列: sprint_id（収入・支出）',
+         count(*) || ' / 2',
+         case when count(*) = 2 then 'OK'
+              else '0002_sprints.sql を実行してください' end
+  from information_schema.columns
+  where table_schema = 'public' and column_name = 'sprint_id'
+    and table_name in ('incomes', 'expenses')
+
+  union all
+
+  select 7.3, '列: 固定費（支出）',
+         count(*) || ' / 3',
+         case when count(*) = 3 then 'OK'
+              else '0003_recurring_expenses.sql を実行してください' end
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'expenses'
+    and column_name in ('recurrence', 'payment_day', 'recurrence_ends_on')
+
+  union all
+
   -- 進行中スプリントの有無と、未割り当ての記録がないか
   select * from pg_temp.sprint_checks()
 

@@ -40,6 +40,24 @@ export function describeError(error: unknown): string {
   if (/failed to fetch|network/i.test(message)) {
     return '通信に失敗しました。ネットワークと VITE_SUPABASE_URL の設定を確認してください'
   }
+  // PostgREST は列が無い（またはスキーマキャッシュが古い）とこの形で返す。
+  // どのマイグレーションを流せばよいかまで案内する。
+  const missingColumn = /could not find the '([^']+)' column/i.exec(message)
+  if (missingColumn) {
+    const column = missingColumn[1]
+    const migration =
+      ['recurrence', 'payment_day', 'recurrence_ends_on'].includes(column)
+        ? '0003_recurring_expenses.sql'
+        : column === 'sprint_id'
+          ? '0002_sprints.sql'
+          : null
+    return migration
+      ? `データベースの更新がまだです。Supabase の SQL Editor で supabase/migrations/${migration} を実行してください（列 ${column} がありません）`
+      : `データベースに列 ${column} がありません。supabase/migrations/ の未実行のファイルを順に実行してください`
+  }
+  if (/schema cache/i.test(message)) {
+    return 'データベースの変更が API に反映されていません。SQL Editor で notify pgrst, \'reload schema\'; を実行してください'
+  }
   if (/row-level security/i.test(message)) {
     return '権限がありません。ログイン状態を確認してください（再ログインで解決する場合があります）'
   }

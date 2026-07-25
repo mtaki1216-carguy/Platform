@@ -67,3 +67,10 @@ end $$;
 
 create index if not exists expenses_recurring_idx
   on public.expenses (recurrence) where recurrence = 'monthly';
+
+-- ----------------------------------------------------------------------------
+--  PostgREST に列構成の変更を知らせる。
+--  これを忘れると、列は増えているのに API が古い定義のままになり
+--  「Could not find the 'xxx' column ... in the schema cache」が出る。
+-- ----------------------------------------------------------------------------
+notify pgrst, 'reload schema';
