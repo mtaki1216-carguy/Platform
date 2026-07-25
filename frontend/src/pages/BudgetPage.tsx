@@ -336,8 +336,8 @@ function SettlementPlanCard({
           <thead>
             <tr>
               <th>メンバー</th>
-              <th className="num">納めた会費</th>
-              <th className="num">返す立替</th>
+              <th className="num">納入済会費</th>
+              <th className="num">立替済</th>
               <th className="num">やり取り</th>
               <th className="num">精算後の負担</th>
             </tr>
