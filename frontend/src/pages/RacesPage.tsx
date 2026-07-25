@@ -17,8 +17,9 @@ import {
 
 /** 「まだ申し込んでいない＝これから動く必要がある」ステータス */
 const OPEN_STATUSES: RaceStatus[] = ['considering', 'planned']
-/** 参加するつもりのレース */
-const COMMITTED: RaceStatus[] = ['planned', 'applied', 'accepted', 'finished']
+
+/** 受付開始が「近い」と見なす日数 */
+const OPENING_SOON_DAYS = 14
 
 export function RacesPage() {
   const { races, expenses, update, remove } = useTeamData()
@@ -40,9 +41,17 @@ export function RacesPage() {
     }
   }, [races])
 
-  const committed = races.filter((r) => COMMITTED.includes(r.status))
-  const feeTotal = committed.reduce((sum, r) => sum + r.entry_fee, 0)
-  const feeUnpaid = committed.filter((r) => !r.fee_paid).reduce((sum, r) => sum + r.entry_fee, 0)
+  /**
+   * 申込受付がこれから始まるレース。
+   * 受付開始日が今日以降で、2週間以内に来るもの（開始済みのものは含めない）。
+   */
+  const openingSoon = races
+    .filter((r) => r.entry_opens_on)
+    .filter((r) => {
+      const days = daysFromToday(r.entry_opens_on!)
+      return days >= 0 && days <= OPENING_SOON_DAYS
+    })
+    .sort((a, b) => a.entry_opens_on!.localeCompare(b.entry_opens_on!))
 
   /** 締切が残っていて、まだ申し込んでいないレース */
   const deadlineAlerts = upcoming
@@ -79,22 +88,28 @@ export function RacesPage() {
       </div>
 
       <div className="stack">
-        <div className="grid grid--stats">
-          <Stat label="今後のレース" value={`${upcoming.length} 件`} note={`うち参加予定 ${upcoming.filter((r) => COMMITTED.includes(r.status)).length} 件`} />
-          <Stat label="参加費 合計" value={formatYen(feeTotal)} note="参加予定・申込済のレース" />
+        <div className="stat-single">
           <Stat
-            label="未払いの参加費"
-            value={formatYen(feeUnpaid)}
-            tone={feeUnpaid > 0 ? 'bad' : undefined}
-            note={feeUnpaid > 0 ? '支払いが必要です' : 'すべて支払い済み'}
-          />
-          <Stat
-            label="締切が近い"
-            value={`${deadlineAlerts.length} 件`}
-            tone={deadlineAlerts.length > 0 ? 'bad' : undefined}
-            note="3週間以内で未申込のもの"
+            label="申込開始日が近いレース"
+            value={`${openingSoon.length} 件`}
+            tone={openingSoon.length > 0 ? 'bad' : undefined}
+            note={`受付開始まで${OPENING_SOON_DAYS}日以内`}
           />
         </div>
+
+        {openingSoon.length > 0 ? (
+          <Banner tone="info">
+            <strong>もうすぐ申込受付が始まります。</strong>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              {openingSoon.map((r) => (
+                <li key={r.id}>
+                  {r.name} — 受付開始 {formatDate(r.entry_opens_on)}（
+                  {formatRelativeDays(r.entry_opens_on)}）
+                </li>
+              ))}
+            </ul>
+          </Banner>
+        ) : null}
 
         {deadlineAlerts.length > 0 ? (
           <Banner tone="warning">

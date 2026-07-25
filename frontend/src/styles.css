@@ -242,6 +242,11 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
 }
 
+/* タイルが1枚だけのとき、横いっぱいに伸びて間延びしないよう幅を抑える */
+.stat-single {
+  max-width: 320px;
+}
+
 /* ヒーロー数値 + 補助タイル。ヒーローは1画面に1つだけ */
 .grid--hero {
   grid-template-columns: minmax(240px, 0.9fr) minmax(0, 2.1fr);
