@@ -28,7 +28,7 @@ export function ExpenseForm({
   onSaved?: () => Promise<void> | void
   onDone: () => void
 }) {
-  const { members, races, insert, update } = useTeamData()
+  const { members, races, insert, update, ensureOpenSprint } = useTeamData()
 
   const [occurredOn, setOccurredOn] = useState(initial?.occurred_on ?? today())
   const [category, setCategory] = useState<ExpenseCategory>(
@@ -68,8 +68,13 @@ export function ExpenseForm({
       note: nullable(note),
     }
 
-    if (initial) await update('expenses', initial.id, row)
-    else await insert('expenses', row)
+    if (initial) {
+      await update('expenses', initial.id, row)
+    } else {
+      // 新規の記録は必ず進行中のスプリントに属させる
+      const sprint = await ensureOpenSprint()
+      await insert('expenses', { ...row, sprint_id: sprint.id })
+    }
 
     await onSaved?.()
   }, onDone)

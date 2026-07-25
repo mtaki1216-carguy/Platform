@@ -4,7 +4,7 @@
 
 | 機能 | 内容 |
 | --- | --- |
-| ① 予算管理 | 収入（会費・スポンサー）と支出（チーム口座払い／個人立替）から、**チーム残高をリアルタイムに表示**。個人立替は精算状況まで管理し、「誰にいくら返すべきか」が一覧で分かります。 |
+| ① 予算管理 | 収入（会費・スポンサー）と支出（チーム口座払い／個人立替）から、**チーム残高をリアルタイムに表示**。個人立替は精算状況まで管理し、「誰にいくら返すべきか」が一覧で分かります。予算は**スプリント単位**で区切り、終了したスプリントの記録はいつでも振り返れます。 |
 | ② 整備記録 | 整備内容を実施日・走行距離・区分とあわせてデータベースに保存。費用は支出として①に連動。 |
 | ③ レース管理 | 出場予定レースの日程・参加費・申込開始日／締切日／申込日を保存。**各レースの申込状況が一覧で一目で分かり**、その場で状況を進められます。 |
 
@@ -14,6 +14,7 @@
 Platform/
 ├── supabase/
 │   ├── migrations/0001_init.sql   ← テーブル・RLS・Realtime の定義
+│   ├── migrations/0002_sprints.sql ← スプリント（予算の区切り）
 │   ├── seed.sql                   ← メンバー5名の初期データ
 │   └── verify.sql                 ← セットアップが揃っているかの確認用
 └── frontend/                      ← React + TypeScript + Vite（Vercel にデプロイ）
@@ -34,8 +35,9 @@ Platform/
 1. [supabase.com](https://supabase.com) で無料アカウントを作り、新規プロジェクトを作成します。
    リージョンは **Northeast Asia (Tokyo)** が最も速いです。
 2. 左メニューの **SQL Editor** を開き、`supabase/migrations/0001_init.sql` の中身を全部貼り付けて **Run**。
-3. 同じく `supabase/seed.sql` を貼り付けて **Run**（メンバー5名が登録されます）。
-4. 確認として `supabase/verify.sql` を貼り付けて **Run**。
+3. 続けて `supabase/migrations/0002_sprints.sql` を貼り付けて **Run**。
+4. 同じく `supabase/seed.sql` を貼り付けて **Run**（メンバー5名が登録されます）。
+5. 確認として `supabase/verify.sql` を貼り付けて **Run**。
    「判定」列がすべて `OK` になっていれば手順1・2は完了です。
    最下行に `VITE_TEAM_EMAIL` に入れる値も出ます。
 
@@ -134,6 +136,26 @@ npm run dev      # http://localhost:5173
 全部返した後に残る額を「精算後見込み残高」として出します。
 精算後がマイナスになる場合は画面上で警告が出ます。
 
+### スプリント（予算の区切り）
+
+予算はスプリント単位で管理します。区切るタイミングはチームが決めます
+（精算を終えてチーム残高を確定させたら終了、など）。
+
+- スプリントは **名前が未入力（null）の状態で自動的に始まります**。収入や支出を最初に登録した
+  時点で作られ、名前は後からいつでも付けられます。未入力の間は「第Nスプリント」と表示されます。
+- 予算管理画面の **「スプリントを終了」** で締めます。終了すると同じ日から次のスプリントが
+  自動で始まるため、「終了したのに次が無い」状態にはなりません。
+- 終了したスプリントは **予算管理画面の「スプリントの記録」からいつでも参照できます**。
+  スプリントを選ぶと、そのスプリントの収支・精算状況・費目別・支出／収入一覧に切り替わります。
+- どのスプリントの記録かは `sprint_id` で決まります（日付では判定しません）。
+  そのため、あとで日付を直してもスプリントの帰属は変わりません。
+
+**期首残高・期末残高は保存していません。** スプリントを古い順にたどって
+（収入 − 口座から出た額）を積み上げて毎回計算します。保存すると、後から記録を修正したときに
+保存値と食い違うためです。最後のスプリントの期末残高は、必ず全体のチーム残高と一致します。
+
+未精算の立替を残したまま終了することもできます（止めません）が、その場合は警告が出ます。
+
 ### 費用の二重計上を防ぐ設計
 
 お金は **`expenses` テーブルだけ**が持ちます。整備記録やレースは金額を持たず、
@@ -150,8 +172,9 @@ npm run dev      # http://localhost:5173
 | テーブル | 役割 | 主な列 |
 | --- | --- | --- |
 | `members` | メンバー | `name`, `sort_order` |
-| `incomes` | 収入 | `occurred_on`, `category`(会費/スポンサー/繰越/返金), `member_id`, `amount` |
-| `expenses` | 支出（金額の唯一の置き場） | `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id` |
+| `incomes` | 収入 | `sprint_id`, `occurred_on`, `category`(会費/スポンサー/繰越/返金), `member_id`, `amount` |
+| `expenses` | 支出（金額の唯一の置き場） | `sprint_id`, `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id` |
+| `sprints` | 予算の区切り | `name`(未入力可), `started_on`, `ended_on`(null=進行中), `note` |
 | `maintenance_records` | 整備記録 | `performed_on`, `odometer_km`, `category`, `title`, `detail` |
 | `races` | レース | `name`, `circuit`, `starts_on`, `ends_on`, `entry_fee`, `entry_opens_on`, `entry_deadline`, `applied_on`, `status`, `fee_paid` |
 | `race_participants` | 参加メンバー | `race_id`, `member_id`, `role`(ドライバー/ピット/サポート) |
@@ -161,6 +184,9 @@ npm run dev      # http://localhost:5173
 - チーム口座払いに立替者や精算日は入らない／立替には必ず立替者が要る（`expenses_payer_consistency`）
 - 未精算なのに精算日が入っている状態を防ぐ（`expenses_reimbursed_consistency`）
 - レースの最終日は開催日以降、申込締切は申込開始日以降
+- スプリントの終了日は開始日以降
+- **進行中のスプリントは常に1つだけ**（部分ユニークインデックス `sprints_single_open_idx`）。
+  5人が同時に操作しても2つ開かない
 
 ### 申込状況（`races.status`）
 

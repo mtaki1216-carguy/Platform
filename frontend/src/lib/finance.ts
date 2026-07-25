@@ -1,5 +1,5 @@
 import { monthKey } from './format'
-import type { Expense, Income, Member, UUID } from './types'
+import type { Expense, Income, Member, Sprint, UUID } from './types'
 
 /**
  * ── 残高の考え方（機能①の定義） ─────────────────────────────────────────
@@ -158,6 +158,110 @@ export function byCategory<T extends string>(
   return [...map.entries()]
     .map(([key, v]) => ({ key, ...v }))
     .sort((a, b) => b.amount - a.amount)
+}
+
+/**
+ * ── スプリント単位の集計 ────────────────────────────────────────────────
+ *
+ *  スプリントは「精算を終えてチーム残高を確定させるまで」を1区切りとする単位。
+ *  どのスプリントの記録かは sprint_id で決まる（日付では判定しない）。
+ *  期首・期末残高は保存せず毎回ここで計算する。保存すると、後から記録を
+ *  修正したときに保存値と食い違うため。
+ * ────────────────────────────────────────────────────────────────────────
+ */
+export interface SprintTotals {
+  sprint: Sprint
+  /** 古い順の連番（表示用。1から始まる） */
+  order: number
+  isOpen: boolean
+  income: number
+  /** 支出の発生ベース合計（未精算の立替も含む） */
+  expense: number
+  paidFromTeamAccount: number
+  reimbursedTotal: number
+  /** このスプリントの立替でまだ精算していない額 */
+  unsettled: number
+  /** このスプリント中に口座から出た額 */
+  cashOut: number
+  /** income − cashOut */
+  net: number
+  /** スプリント開始時点のチーム残高 */
+  openingBalance: number
+  /** スプリント終了時点（進行中なら現在）のチーム残高 */
+  closingBalance: number
+  incomeCount: number
+  expenseCount: number
+}
+
+/** 表示順（古い順）に並べたスプリント。進行中は最後に来る */
+export function sortSprints(sprints: Sprint[]): Sprint[] {
+  return [...sprints].sort((a, b) => {
+    if (a.started_on !== b.started_on) return a.started_on.localeCompare(b.started_on)
+    return a.created_at.localeCompare(b.created_at)
+  })
+}
+
+export function sprintTotals(
+  sprints: Sprint[],
+  incomes: Income[],
+  expenses: Expense[],
+): SprintTotals[] {
+  let running = 0
+  return sortSprints(sprints).map((sprint, index) => {
+    const si = incomes.filter((i) => i.sprint_id === sprint.id)
+    const se = expenses.filter((e) => e.sprint_id === sprint.id)
+
+    const income = sum(si, (i) => i.amount)
+    const expense = sum(se, (e) => e.amount)
+    const paidFromTeamAccount = sum(
+      se.filter((e) => e.payer_type === 'team'),
+      (e) => e.amount,
+    )
+    const reimbursedTotal = sum(
+      se.filter((e) => e.payer_type === 'member' && e.reimbursed),
+      (e) => e.amount,
+    )
+    const unsettled = sum(
+      se.filter((e) => e.payer_type === 'member' && !e.reimbursed),
+      (e) => e.amount,
+    )
+    const cashOut = paidFromTeamAccount + reimbursedTotal
+
+    const openingBalance = running
+    running += income - cashOut
+
+    return {
+      sprint,
+      order: index + 1,
+      isOpen: sprint.ended_on === null,
+      income,
+      expense,
+      paidFromTeamAccount,
+      reimbursedTotal,
+      unsettled,
+      cashOut,
+      net: income - cashOut,
+      openingBalance,
+      closingBalance: running,
+      incomeCount: si.length,
+      expenseCount: se.length,
+    }
+  })
+}
+
+/** 進行中のスプリント（なければ null） */
+export function openSprint(sprints: Sprint[]): Sprint | null {
+  return sprints.find((s) => s.ended_on === null) ?? null
+}
+
+/**
+ * どのスプリントにも属していない記録の件数。
+ * 通常は 0。0 でなければ画面に出して、金額が黙って消えないようにする。
+ */
+export function unassignedCount(incomes: Income[], expenses: Expense[]): number {
+  return (
+    incomes.filter((i) => !i.sprint_id).length + expenses.filter((e) => !e.sprint_id).length
+  )
 }
 
 /** そのレースに紐づく支出の合計 */

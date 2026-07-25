@@ -2,12 +2,25 @@ import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
 import { Badge, Banner, Card, Empty, Modal } from '../components/ui'
-import { BalanceChart } from '../charts/BalanceChart'
 import { MonthlyBars } from '../charts/MonthlyBars'
 import { IncomeForm } from '../forms/IncomeForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
-import { byCategory } from '../lib/finance'
-import { formatDate, formatMonth, formatYen, formatYenSigned, today } from '../lib/format'
+import { CloseSprintForm } from '../forms/CloseSprintForm'
+import {
+  byCategory,
+  monthlySeries,
+  summarize,
+  unassignedCount,
+  type SprintTotals,
+  type Summary,
+} from '../lib/finance'
+import {
+  formatDate,
+  formatMonth,
+  formatYen,
+  formatYenSigned,
+  today,
+} from '../lib/format'
 import {
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
@@ -15,10 +28,82 @@ import {
   type Income,
 } from '../lib/types'
 
+/** 名前が未入力のスプリントは連番で呼ぶ */
+export function sprintLabel(t: SprintTotals): string {
+  return t.sprint.name?.trim() || `第${t.order}スプリント`
+}
+
+/** 進行中は終了日を空けておく（「進行中」はバッジ側が言うので重ねない） */
+function sprintPeriod(t: SprintTotals): string {
+  return t.sprint.ended_on
+    ? `${formatDate(t.sprint.started_on)} 〜 ${formatDate(t.sprint.ended_on)}`
+    : `${formatDate(t.sprint.started_on)} 〜`
+}
+
 export function BudgetPage() {
-  const { summary, monthly, expenses } = useTeamData()
-  const [dialog, setDialog] = useState<'income' | 'expense' | null>(null)
+  const { sprintStats, members, incomes, expenses, summary, update } = useTeamData()
+  const [dialog, setDialog] = useState<'income' | 'expense' | 'close' | null>(null)
+  const [pickedId, setPickedId] = useState<string>('')
   const { selfId } = useSelfMember()
+
+  // 既定では進行中のスプリントを見る
+  const selected =
+    sprintStats.find((s) => s.sprint.id === pickedId) ??
+    sprintStats.find((s) => s.isOpen) ??
+    sprintStats[sprintStats.length - 1]
+
+  const orphans = unassignedCount(incomes, expenses)
+
+  /** 選択中のスプリントに属する記録だけを切り出す */
+  const scoped = useMemo(() => {
+    if (!selected) {
+      return { incomes: [] as Income[], expenses: [] as Expense[], summary: summarize([], [], members), monthly: [] }
+    }
+    const si = incomes.filter((i) => i.sprint_id === selected.sprint.id)
+    const se = expenses.filter((e) => e.sprint_id === selected.sprint.id)
+    return { incomes: si, expenses: se, summary: summarize(si, se, members), monthly: monthlySeries(si, se) }
+  }, [selected, incomes, expenses, members])
+
+  if (!selected) {
+    return (
+      <>
+        <div className="page-head">
+          <div>
+            <h1>予算管理</h1>
+          </div>
+        </div>
+        <Card>
+          <Empty title="スプリントがまだありません">
+            収入または支出を登録すると、最初のスプリントが自動で始まります。
+          </Empty>
+          <div className="form-actions">
+            <button className="btn" onClick={() => setDialog('income')}>
+              収入を登録
+            </button>
+            <button className="btn btn--primary" onClick={() => setDialog('expense')}>
+              支出を登録
+            </button>
+          </div>
+        </Card>
+        {dialog === 'income' ? (
+          <Modal title="収入を登録" onClose={() => setDialog(null)}>
+            <IncomeForm defaultMemberId={selfId} onDone={() => setDialog(null)} />
+          </Modal>
+        ) : null}
+        {dialog === 'expense' ? (
+          <Modal title="支出を登録" onClose={() => setDialog(null)}>
+            <ExpenseForm defaultMemberId={selfId} onDone={() => setDialog(null)} />
+          </Modal>
+        ) : null}
+      </>
+    )
+  }
+
+  async function rename() {
+    const next = window.prompt('スプリント名（空欄にすると連番表示に戻ります）', selected!.sprint.name ?? '')
+    if (next === null) return
+    await update('sprints', selected!.sprint.id, { name: next.trim() || null })
+  }
 
   return (
     <>
@@ -26,8 +111,8 @@ export function BudgetPage() {
         <div>
           <h1>予算管理</h1>
           <p>
-            チーム残高は「チーム口座に今いくらあるか」です。個人立替は精算した時点で口座から出ていくため、
-            未精算のうちは残高に含まれません。
+            予算はスプリント単位で区切ります。精算を終えてチーム残高が確定したら、
+            スプリントを終了すると次のスプリントが自動で始まります。
           </p>
         </div>
         <div className="toolbar">
@@ -41,31 +126,115 @@ export function BudgetPage() {
       </div>
 
       <div className="stack">
-        {summary.projectedBalance < 0 ? (
-          <Banner tone="critical">
-            <strong>未精算の立替を全額返すと残高がマイナスになります。</strong>{' '}
-            不足額は {formatYen(-summary.projectedBalance)} です。会費の追加徴収を検討してください。
+        {orphans > 0 ? (
+          <Banner tone="warning">
+            <strong>どのスプリントにも属していない記録が {orphans} 件あります。</strong>{' '}
+            スプリント別の集計には出てきません。`supabase/migrations/0002_sprints.sql` を実行すると
+            最初のスプリントに割り当てられます。
           </Banner>
         ) : null}
 
-        <div className="grid grid--two">
-          <Card title="チーム残高の推移" subtitle="各月末時点の口座残高">
-            <BalanceChart data={monthly} />
-          </Card>
-          <Card title="月ごとの収支" subtitle="支出は口座から実際に出た額（立替は精算した月に計上）">
-            <MonthlyBars data={monthly} />
-          </Card>
-        </div>
+        {summary.projectedBalance < 0 ? (
+          <Banner tone="critical">
+            <strong>未精算の立替を全額返すと、チーム残高がマイナスになります。</strong>{' '}
+            不足額は {formatYen(-summary.projectedBalance)} です（全スプリント通算）。
+          </Banner>
+        ) : null}
 
-        <MonthlyTable />
+        <Card
+          title={
+            <span className="sprint-head">
+              <span>{sprintLabel(selected)}</span>
+              {selected.isOpen ? (
+                <Badge tone="good">進行中</Badge>
+              ) : (
+                <Badge tone="muted">終了</Badge>
+              )}
+              <span className="sprint-head__period">{sprintPeriod(selected)}</span>
+            </span>
+          }
+          actions={
+            <div className="toolbar">
+              {sprintStats.length > 1 ? (
+                <select
+                  value={selected.sprint.id}
+                  onChange={(e) => setPickedId(e.target.value)}
+                  aria-label="表示するスプリント"
+                >
+                  {[...sprintStats].reverse().map((t) => (
+                    <option key={t.sprint.id} value={t.sprint.id}>
+                      {sprintLabel(t)}
+                      {t.isOpen ? '（進行中）' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button className="btn btn--sm" onClick={() => void rename()}>
+                名称を変更
+              </button>
+              {selected.isOpen ? (
+                <button className="btn btn--sm btn--primary" onClick={() => setDialog('close')}>
+                  スプリントを終了
+                </button>
+              ) : null}
+            </div>
+          }
+        >
+          <dl className="sprint-figures">
+            <div>
+              <dt>期首残高</dt>
+              <dd>{formatYen(selected.openingBalance)}</dd>
+            </div>
+            <div>
+              <dt>収入</dt>
+              <dd>{formatYen(selected.income)}</dd>
+            </div>
+            <div>
+              <dt>支出（口座から）</dt>
+              <dd>{formatYen(selected.cashOut)}</dd>
+            </div>
+            <div>
+              <dt>収支</dt>
+              <dd className={selected.net < 0 ? 'value-bad' : selected.net > 0 ? 'value-good' : ''}>
+                {formatYenSigned(selected.net)}
+              </dd>
+            </div>
+            <div>
+              <dt>{selected.isOpen ? '現在の残高' : '期末残高'}</dt>
+              <dd>{formatYen(selected.closingBalance)}</dd>
+            </div>
+            <div>
+              <dt>未精算の立替</dt>
+              <dd className={selected.unsettled > 0 ? 'value-bad' : ''}>
+                {formatYen(selected.unsettled)}
+              </dd>
+            </div>
+          </dl>
+          {selected.sprint.note ? (
+            <p style={{ marginBottom: 0, marginTop: 14, fontSize: 13, color: 'var(--ink-2)' }}>
+              {selected.sprint.note}
+            </p>
+          ) : null}
+        </Card>
 
-        <SettlementCard />
+        <Card
+          title="月ごとの収支"
+          subtitle="このスプリント内。支出は口座から実際に出た額（立替は精算した月に計上）"
+        >
+          <MonthlyBars data={scoped.monthly} />
+        </Card>
 
-        <CategoryBreakdown expenses={expenses} />
+        <MonthlyTable monthly={scoped.monthly} />
 
-        <ExpenseTable defaultMemberId={selfId} />
+        <SettlementCard summary={scoped.summary} expenses={scoped.expenses} />
 
-        <IncomeTable defaultMemberId={selfId} />
+        <CategoryBreakdown expenses={scoped.expenses} />
+
+        <ExpenseTable expenses={scoped.expenses} defaultMemberId={selfId} />
+
+        <IncomeTable incomes={scoped.incomes} defaultMemberId={selfId} />
+
+        <SprintHistory stats={sprintStats} selectedId={selected.sprint.id} onPick={setPickedId} />
       </div>
 
       {dialog === 'income' ? (
@@ -79,15 +248,89 @@ export function BudgetPage() {
           <ExpenseForm defaultMemberId={selfId} onDone={() => setDialog(null)} />
         </Modal>
       ) : null}
+
+      {dialog === 'close' && selected.isOpen ? (
+        <Modal title="スプリントを終了" onClose={() => setDialog(null)}>
+          <CloseSprintForm
+            totals={selected}
+            onDone={() => {
+              setDialog(null)
+              // 終了すると新しいスプリントが進行中になるので、そちらを見る
+              setPickedId('')
+            }}
+          />
+        </Modal>
+      ) : null}
     </>
   )
 }
 
-/** グラフの数値を表でも読めるようにする（色に頼らない経路を必ず残す） */
-function MonthlyTable() {
-  const { monthly } = useTeamData()
-  const [open, setOpen] = useState(false)
+/** 全スプリントの記録。いつでも過去を振り返れるようにする */
+function SprintHistory({
+  stats,
+  selectedId,
+  onPick,
+}: {
+  stats: SprintTotals[]
+  selectedId: string
+  onPick: (id: string) => void
+}) {
+  return (
+    <Card title="スプリントの記録" subtitle={`${stats.length}件`} flush>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th className="col-title">スプリント</th>
+              <th>期間</th>
+              <th className="num">収入</th>
+              <th className="num">支出</th>
+              <th className="num">収支</th>
+              <th className="num">期末残高</th>
+              <th className="num">未精算</th>
+              <th className="col-actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {[...stats].reverse().map((t) => (
+              <tr key={t.sprint.id}>
+                <td>
+                  {sprintLabel(t)}
+                  <span className="sub">
+                    {t.isOpen ? <Badge tone="good">進行中</Badge> : `${t.incomeCount + t.expenseCount} 件の記録`}
+                  </span>
+                </td>
+                <td className="nowrap">{sprintPeriod(t)}</td>
+                <td className="num">{formatYen(t.income)}</td>
+                <td className="num">{formatYen(t.cashOut)}</td>
+                <td className={`num ${t.net < 0 ? 'value-bad' : t.net > 0 ? 'value-good' : ''}`}>
+                  {formatYenSigned(t.net)}
+                </td>
+                <td className="num">{formatYen(t.closingBalance)}</td>
+                <td className={`num ${t.unsettled > 0 ? 'value-bad' : ''}`}>
+                  {t.unsettled > 0 ? formatYen(t.unsettled) : '—'}
+                </td>
+                <td className="col-actions">
+                  {t.sprint.id === selectedId ? (
+                    <Badge tone="info">表示中</Badge>
+                  ) : (
+                    <button className="btn btn--ghost btn--sm" onClick={() => onPick(t.sprint.id)}>
+                      表示
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  )
+}
 
+/** グラフの数値を表でも読めるようにする（色に頼らない経路を必ず残す） */
+function MonthlyTable({ monthly }: { monthly: ReturnType<typeof monthlySeries> }) {
+  const [open, setOpen] = useState(false)
   if (monthly.length === 0) return null
 
   return (
@@ -134,8 +377,8 @@ function MonthlyTable() {
 }
 
 /** 誰にいくら返すべきか。まとめて精算できるようにする */
-function SettlementCard() {
-  const { summary, expenses, update, reload } = useTeamData()
+function SettlementCard({ summary, expenses }: { summary: Summary; expenses: Expense[] }) {
+  const { update, reload } = useTeamData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -163,10 +406,8 @@ function SettlementCard() {
     }
   }
 
-  const rows = summary.byMember
-
   return (
-    <Card title="立替の精算状況" subtitle="チームがメンバーに返すべき金額" flush>
+    <Card title="立替の精算状況" subtitle="このスプリントでチームがメンバーに返すべき金額" flush>
       {error ? (
         <div style={{ padding: 16 }}>
           <Banner tone="critical">{error}</Banner>
@@ -185,7 +426,7 @@ function SettlementCard() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {summary.byMember.map((row) => (
               <tr key={row.member.id}>
                 <td className="nowrap">{row.member.name}</td>
                 <td className={`num ${row.unsettled > 0 ? 'value-bad' : ''}`}>
@@ -232,7 +473,7 @@ function CategoryBreakdown({ expenses }: { expenses: Expense[] }) {
   const max = rows[0].amount
 
   return (
-    <Card title="費目別の支出" subtitle="発生ベース（未精算の立替も含む）">
+    <Card title="費目別の支出" subtitle="このスプリントの発生ベース（未精算の立替も含む）">
       <div className="rank">
         {rows.map((row) => (
           <div key={row.key} style={{ display: 'contents' }}>
@@ -250,8 +491,14 @@ function CategoryBreakdown({ expenses }: { expenses: Expense[] }) {
 
 // ── 支出一覧 ───────────────────────────────────────────────────────────
 
-function ExpenseTable({ defaultMemberId }: { defaultMemberId: string }) {
-  const { expenses, races, members, memberName, update, remove } = useTeamData()
+function ExpenseTable({
+  expenses,
+  defaultMemberId,
+}: {
+  expenses: Expense[]
+  defaultMemberId: string
+}) {
+  const { races, members, memberName, update, remove } = useTeamData()
   const [editing, setEditing] = useState<Expense | null>(null)
   const [category, setCategory] = useState('')
   const [payer, setPayer] = useState('')
@@ -418,8 +665,8 @@ function ExpenseTable({ defaultMemberId }: { defaultMemberId: string }) {
 
 // ── 収入一覧 ───────────────────────────────────────────────────────────
 
-function IncomeTable({ defaultMemberId }: { defaultMemberId: string }) {
-  const { incomes, memberName, remove } = useTeamData()
+function IncomeTable({ incomes, defaultMemberId }: { incomes: Income[]; defaultMemberId: string }) {
+  const { memberName, remove } = useTeamData()
   const [editing, setEditing] = useState<Income | null>(null)
   const [category, setCategory] = useState('')
 

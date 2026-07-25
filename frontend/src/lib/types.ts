@@ -4,6 +4,20 @@ export type UUID = string
 /** ISO 形式の日付 (YYYY-MM-DD) */
 export type ISODate = string
 
+/**
+ * 予算を区切る単位。名前は未入力（null）で自動的に始まり、後から付けられる。
+ * ended_on が null のものが進行中で、DB 側の部分ユニークインデックスにより
+ * 進行中は常に1つだけになる。
+ */
+export interface Sprint {
+  id: UUID
+  name: string | null
+  started_on: ISODate
+  ended_on: ISODate | null
+  note: string | null
+  created_at: string
+}
+
 export interface Member {
   id: UUID
   name: string
@@ -23,6 +37,7 @@ export type IncomeCategory = keyof typeof INCOME_CATEGORIES
 
 export interface Income {
   id: UUID
+  sprint_id: UUID | null
   occurred_on: ISODate
   category: IncomeCategory
   member_id: UUID | null
@@ -50,6 +65,7 @@ export type PayerType = 'team' | 'member'
 
 export interface Expense {
   id: UUID
+  sprint_id: UUID | null
   occurred_on: ISODate
   category: ExpenseCategory
   description: string

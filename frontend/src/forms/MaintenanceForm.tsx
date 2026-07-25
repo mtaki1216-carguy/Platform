@@ -19,7 +19,7 @@ export function MaintenanceForm({
   defaultMemberId?: string | null
   onDone: () => void
 }) {
-  const { members, maintenance, insert, update } = useTeamData()
+  const { members, maintenance, insert, update, ensureOpenSprint } = useTeamData()
 
   const [performedOn, setPerformedOn] = useState(initial?.performed_on ?? today())
   const [category, setCategory] = useState<MaintenanceCategory>(initial?.category ?? 'other')
@@ -65,7 +65,9 @@ export function MaintenanceForm({
       const value = Math.round(Number(cost))
       if (!Number.isFinite(value) || value <= 0) throw new Error('費用は1円以上で入力してください')
       if (costPayer === 'member' && !costPaidBy) throw new Error('立替の場合は立替者を選んでください')
+      const sprint = await ensureOpenSprint()
       await insert('expenses', {
+        sprint_id: sprint.id,
         occurred_on: performedOn,
         category: 'maintenance',
         description: title.trim(),

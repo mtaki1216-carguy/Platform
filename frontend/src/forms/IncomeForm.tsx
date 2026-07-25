@@ -14,7 +14,7 @@ export function IncomeForm({
   defaultMemberId?: string | null
   onDone: () => void
 }) {
-  const { members, insert, update } = useTeamData()
+  const { members, insert, update, ensureOpenSprint } = useTeamData()
 
   const [occurredOn, setOccurredOn] = useState(initial?.occurred_on ?? today())
   const [category, setCategory] = useState<IncomeCategory>(initial?.category ?? 'membership_fee')
@@ -36,8 +36,13 @@ export function IncomeForm({
     if (!Number.isFinite(row.amount) || row.amount <= 0) throw new Error('金額は1円以上で入力してください')
     if (needsMember && !row.member_id) throw new Error('会費の納入者を選んでください')
 
-    if (initial) await update('incomes', initial.id, row)
-    else await insert('incomes', row)
+    if (initial) {
+      await update('incomes', initial.id, row)
+    } else {
+      // 新規の記録は必ず進行中のスプリントに属させる
+      const sprint = await ensureOpenSprint()
+      await insert('incomes', { ...row, sprint_id: sprint.id })
+    }
   }, onDone)
 
   return (

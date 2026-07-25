@@ -2,18 +2,59 @@
 --  セットアップ確認用
 --  SQL Editor に貼り付けて実行すると、必要なものが揃っているかを一覧で返します。
 --  「判定」列がすべて OK なら、あとは環境変数を入れるだけです。
+--
+--  0002_sprints.sql を実行していない状態でも、エラーで止まらずに
+--  「実行してください」と表示されます。
 -- ============================================================================
 
+-- スプリント関連の確認。sprints テーブルが無くても落ちないよう動的SQLで包む。
+-- pg_temp なので接続を閉じれば消え、スキーマには残らない。
+create or replace function pg_temp.sprint_checks()
+returns table (ord numeric, item text, result text, verdict text)
+language plpgsql as $fn$
+begin
+  if to_regclass('public.sprints') is null then
+    return query select 7.5::numeric, '進行中のスプリント'::text, '—'::text,
+                        '0002_sprints.sql を実行してください'::text;
+    return query select 7.6::numeric, 'スプリント未割り当ての記録'::text, '—'::text,
+                        '0002_sprints.sql を実行してください'::text;
+    return;
+  end if;
+
+  return query execute $q$
+    select 7.5::numeric, '進行中のスプリント'::text,
+           (count(*) || ' 件')::text,
+           (case when count(*) = 1 then 'OK'
+                 when count(*) = 0 then '無し（記録を登録すると自動で始まります）'
+                 else '複数あります（想定外）' end)::text
+    from public.sprints where ended_on is null
+  $q$;
+
+  return query execute $q$
+    with orphan as (
+      select (select count(*) from public.incomes  where sprint_id is null)
+           + (select count(*) from public.expenses where sprint_id is null) as n
+    )
+    select 7.6::numeric, 'スプリント未割り当ての記録'::text,
+           (n || ' 件')::text,
+           (case when n = 0 then 'OK'
+                 else '0002_sprints.sql を実行してください' end)::text
+    from orphan
+  $q$;
+end $fn$;
+
 with expected(name) as (
-  values ('members'), ('incomes'), ('expenses'),
+  values ('sprints'), ('members'), ('incomes'), ('expenses'),
          ('races'), ('maintenance_records'), ('race_participants')
 )
 select 項目, 結果, 判定 from (
 
-  -- 6つのテーブルができているか
-  select 1 as ord, 'テーブル' as 項目,
-         count(*) || ' / 6' as 結果,
-         case when count(*) = 6 then 'OK' else '不足（0001_init.sql を実行してください）' end as 判定
+  -- 7つのテーブルができているか
+  select 1::numeric as ord, 'テーブル' as 項目,
+         (count(*) || ' / 7')::text as 結果,
+         (case when count(*) = 7 then 'OK'
+               when count(*) = 6 then 'sprints がありません（0002_sprints.sql を実行してください）'
+               else '不足（0001_init.sql を実行してください）' end)::text as 判定
   from information_schema.tables t
   where t.table_schema = 'public' and t.table_name in (select name from expected)
 
@@ -21,8 +62,8 @@ select 項目, 結果, 判定 from (
 
   -- 各テーブルで行レベルセキュリティが有効か（無効だと誰でも読めてしまう）
   select 2, 'RLS 有効',
-         count(*) || ' / 6',
-         case when count(*) = 6 then 'OK' else '未設定あり（要注意）' end
+         count(*) || ' / 7',
+         case when count(*) = 7 then 'OK' else '未設定あり（要注意）' end
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relrowsecurity
@@ -32,8 +73,8 @@ select 項目, 結果, 判定 from (
 
   -- ログイン済みだけ読み書きできるポリシーが貼られているか
   select 3, 'アクセスポリシー',
-         count(*) || ' / 6',
-         case when count(*) = 6 then 'OK' else '不足' end
+         count(*) || ' / 7',
+         case when count(*) = 7 then 'OK' else '不足' end
   from pg_policies
   where schemaname = 'public'
     and policyname = 'team_members_full_access'
@@ -43,8 +84,8 @@ select 項目, 結果, 判定 from (
 
   -- 5人の画面が自動同期するための設定
   select 4, 'Realtime 配信',
-         count(*) || ' / 6',
-         case when count(*) = 6 then 'OK' else '不足（同期されません）' end
+         count(*) || ' / 7',
+         case when count(*) = 7 then 'OK' else '不足（同期されません）' end
   from pg_publication_tables
   where pubname = 'supabase_realtime' and schemaname = 'public'
     and tablename in (select name from expected)
@@ -77,6 +118,11 @@ select 項目, 結果, 判定 from (
          case when count(*) >= 1 then 'OK'
               else '未確認（Users で該当ユーザーを Confirm してください）' end
   from auth.users where email_confirmed_at is not null
+
+  union all
+
+  -- 進行中スプリントの有無と、未割り当ての記録がないか
+  select * from pg_temp.sprint_checks()
 
   union all
 
