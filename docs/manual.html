@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>GE8 ENDURANCE 運営プラットフォーム 使い方</title>
+<style>
+  /* PDF は Chromium の印刷機能で書き出す。A4・両面想定。 */
+  @page {
+    size: A4;
+    margin: 18mm 16mm 20mm;
+  }
+
+  :root {
+    --ink: #0b0b0b;
+    --ink-2: #3f3e3c;
+    --ink-muted: #6f6d68;
+    --rule: #d8d7d0;
+    --rule-soft: #ebeae4;
+    --accent: #2a78d6;
+    --accent-ink: #1c5cab;
+    --accent-wash: #eef4fd;
+    --warn-wash: #fdf4e0;
+    --warn-ink: #7a5300;
+    --sunken: #f5f5f2;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "IPAGothic", "Noto Sans CJK JP", system-ui, sans-serif;
+    font-size: 10pt;
+    line-height: 1.75;
+    color: var(--ink);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1, h2, h3, h4 { line-height: 1.45; margin: 0; font-weight: bold; }
+
+  /* ── 表紙 ───────────────────────────────────────────── */
+  .cover {
+    height: 253mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    page-break-after: always;
+  }
+  .cover__mark { width: 46px; height: 46px; margin-bottom: 26px; }
+  .cover h1 { font-size: 27pt; letter-spacing: -0.01em; }
+  .cover .sub { font-size: 13pt; color: var(--ink-2); margin-top: 10px; }
+  .cover .lead {
+    margin-top: 30px; padding-top: 22px; border-top: 2px solid var(--ink);
+    font-size: 10.5pt; color: var(--ink-2); max-width: 132mm;
+  }
+  .cover .meta { margin-top: auto; font-size: 9pt; color: var(--ink-muted); }
+
+  /* ── 目次 ───────────────────────────────────────────── */
+  .toc { page-break-after: always; }
+  .toc ol { margin: 0; padding-left: 0; list-style: none; counter-reset: sec; }
+  .toc > ol > li {
+    counter-increment: sec;
+    border-bottom: 1px solid var(--rule-soft);
+    padding: 9px 0;
+    font-size: 11pt;
+    font-weight: bold;
+  }
+  .toc > ol > li::before { content: counter(sec) ". "; color: var(--accent); }
+  .toc ul { margin: 5px 0 0; padding-left: 1.6em; list-style: none; }
+  .toc ul li { font-size: 9.5pt; font-weight: normal; color: var(--ink-2); padding: 1px 0; }
+  .toc ul li::before { content: "— "; color: var(--ink-muted); }
+
+  /* ── 見出し ─────────────────────────────────────────── */
+  section { page-break-before: always; }
+  section:first-of-type { page-break-before: avoid; }
+
+  h2 {
+    font-size: 16pt;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 18px;
+  }
+  h2 .num {
+    display: inline-block; min-width: 1.5em;
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 12pt;
+    margin: 22px 0 8px;
+    padding-left: 10px;
+    border-left: 4px solid var(--accent);
+  }
+  h4 { font-size: 10.5pt; margin: 14px 0 4px; }
+
+  p { margin: 0 0 9px; }
+  strong { font-weight: bold; }
+
+  ul, ol { margin: 0 0 10px; padding-left: 1.5em; }
+  li { margin-bottom: 3px; }
+
+  /* ── 図版 ───────────────────────────────────────────── */
+  figure {
+    margin: 12px 0 16px;
+    page-break-inside: avoid;
+  }
+  figure img {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+  }
+  figure img.narrow { width: 62%; margin: 0 auto; }
+  figcaption {
+    font-size: 8.5pt;
+    color: var(--ink-muted);
+    margin-top: 5px;
+    text-align: center;
+  }
+
+  /* ── 表 ─────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin: 10px 0 14px;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid var(--rule);
+    padding: 6px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--sunken); font-weight: bold; white-space: nowrap; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+
+  /* ── 補足ボックス ───────────────────────────────────── */
+  .note, .warn {
+    padding: 10px 13px;
+    border-radius: 5px;
+    font-size: 9.5pt;
+    margin: 12px 0;
+    page-break-inside: avoid;
+  }
+  .note { background: var(--accent-wash); border: 1px solid rgba(42,120,214,.3); }
+  .warn { background: var(--warn-wash); border: 1px solid rgba(250,178,25,.45); color: var(--warn-ink); }
+  .note p:last-child, .warn p:last-child { margin-bottom: 0; }
+  .note .label, .warn .label { font-weight: bold; display: block; margin-bottom: 2px; }
+
+  /* ── 手順 ───────────────────────────────────────────── */
+  ol.steps { counter-reset: step; list-style: none; padding-left: 0; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 30px;
+    margin-bottom: 9px;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 2px;
+    width: 20px; height: 20px;
+    background: var(--accent); color: #fff;
+    border-radius: 50%;
+    font-size: 8.5pt; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  code {
+    background: var(--sunken);
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    padding: 0 4px;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 8.5pt;
+  }
+
+  .formula {
+    background: var(--sunken);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    font-size: 9pt;
+    line-height: 1.9;
+    margin: 10px 0 14px;
+  }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 9.5pt; margin-bottom: 12px; }
+  .kv dt { font-weight: bold; white-space: nowrap; }
+  .kv dd { margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ 表紙 ══════════════════ -->
+<div class="cover">
+  <svg class="cover__mark" viewBox="0 0 32 32">
+    <rect width="32" height="32" rx="6" fill="#0b0b0b"/>
+    <g fill="#ffffff">
+      <rect x="0" y="0" width="8" height="8"/><rect x="16" y="0" width="8" height="8"/>
+      <rect x="8" y="8" width="8" height="8"/><rect x="24" y="8" width="8" height="8"/>
+      <rect x="0" y="16" width="8" height="8"/><rect x="16" y="16" width="8" height="8"/>
+      <rect x="8" y="24" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/>
+    </g>
+  </svg>
+  <h1>GE8 ENDURANCE<br>運営プラットフォーム</h1>
+  <div class="sub">使い方ガイド</div>
+  <div class="lead">
+    チームの<strong>お金・整備・レース</strong>を5人で共有するためのアプリです。
+    スマホでもパソコンでも同じ画面が使えて、誰かが入力すると全員の画面がその場で更新されます。
+    このガイドは日々の使い方をまとめたものです。最初から読む必要はありません。
+    やりたいことのページだけ開いてください。
+  </div>
+  <div class="meta">メンバー：秋山・井上・森・長谷川・田村</div>
+</div>
+
+<!-- ══════════════════ 目次 ══════════════════ -->
+<div class="toc">
+  <h2>目次</h2>
+  <ol>
+    <li>はじめに
+      <ul><li>ログインする</li><li>スマホで使う</li><li>最初に「自分」を設定する</li><li>画面の構成</li></ul>
+    </li>
+    <li>予算管理 ― お金のこと
+      <ul><li>チーム残高の考え方</li><li>収入を登録する</li><li>支出を登録する</li><li>固定費を登録する</li><li>立替を精算する</li></ul>
+    </li>
+    <li>スプリント ― 予算の区切り
+      <ul><li>スプリントとは</li><li>精算プランで終わらせ方を決める</li><li>スプリントを終了する</li><li>過去のスプリントを見る</li></ul>
+    </li>
+    <li>整備記録
+      <ul><li>整備を記録する</li><li>費用をあとから追加する</li></ul>
+    </li>
+    <li>レース管理
+      <ul><li>レースを登録する</li><li>申込状況を進める</li><li>参加メンバーを決める</li></ul>
+    </li>
+    <li>こんなときは
+      <ul><li>よくある質問</li><li>エラーが出たとき</li></ul>
+    </li>
+    <li>用語集</li>
+  </ol>
+</div>
+
+<!-- ══════════════════ 1. はじめに ══════════════════ -->
+<section>
+  <h2><span class="num">1</span>はじめに</h2>
+
+  <h3>ログインする</h3>
+  <p>
+    ブラウザでチームのURLを開き、<strong>チーム共通のパスワード</strong>を入力します。
+    メールアドレスの入力は要りません。5人とも同じパスワードです。
+  </p>
+  <figure>
+    <img class="narrow" src="manual-assets/login.png" alt="ログイン画面">
+    <figcaption>ログイン画面。パスワードだけを入力します</figcaption>
+  </figure>
+  <div class="note">
+    <span class="label">一度ログインすれば、次からは自動で開きます</span>
+    <p>ログイン状態はブラウザに保存されます。毎回パスワードを入れる必要はありません。
+    共用のパソコンを使ったときだけ、右上の「ログアウト」を押してください。</p>
+  </div>
+
+  <h3>スマホで使う</h3>
+  <p>
+    同じURLをスマホのブラウザで開くだけです。専用アプリのインストールは要りません。
+    ブラウザのメニューから<strong>「ホーム画面に追加」</strong>しておくと、アイコンから一発で開けます。
+  </p>
+
+  <h3>最初に「自分」を設定する</h3>
+  <p>
+    5人が同じアカウントでログインするため、アプリ側からは「今どのメンバーが操作しているか」が分かりません。
+    <strong>メンバー画面で自分の名前を一度だけ選んでおいてください。</strong>
+    立替をしたときの「立替者」が最初から自分になり、入力が1手減ります。
+  </p>
+  <figure>
+    <img src="manual-assets/members.png" alt="メンバー画面の自分の設定">
+    <figcaption>メンバー画面。この設定は自分のブラウザにだけ保存されます</figcaption>
+  </figure>
+
+  <h3>画面の構成</h3>
+  <figure>
+    <img src="manual-assets/nav.png" alt="画面上部のメニュー">
+    <figcaption>画面上部のメニュー。スマホでは「ホーム／予算／整備／レース／メンバー」と短く表示されます</figcaption>
+  </figure>
+  <table>
+    <tr><th>ダッシュボード</th><td>残高の推移、次のレース、最近の整備・支出をまとめて見る画面</td></tr>
+    <tr><th>予算管理</th><td>収入・支出の登録、立替の精算、スプリントの管理</td></tr>
+    <tr><th>整備記録</th><td>整備の内容を走行距離とあわせて残す</td></tr>
+    <tr><th>レース管理</th><td>出場レースの日程・参加費・申込状況の管理</td></tr>
+    <tr><th>メンバー</th><td>メンバーの追加・名前の変更、「自分」の設定</td></tr>
+  </table>
+
+  <div class="note">
+    <span class="label">入力するとその場で全員に反映されます</span>
+    <p>誰かが支出を登録すると、他の4人の画面も自動で更新されます。
+    リロードは不要です（画面右上に最終更新の時刻が出ます）。</p>
+  </div>
+</section>
+
+<!-- ══════════════════ 2. 予算管理 ══════════════════ -->
+<section>
+  <h2><span class="num">2</span>予算管理 ― お金のこと</h2>
+
+  <h3>チーム残高の考え方</h3>
+  <p>
+    このアプリの<strong>「チーム残高」は、チーム口座に今いくら入っているか</strong>です。
+    通帳の残高と一致するように作ってあります。ポイントは<strong>立替の扱い</strong>です。
+  </p>
+  <table>
+    <tr><th style="width:34%">お金の動き</th><th>残高への反映</th></tr>
+    <tr><td>収入（会費・スポンサー）</td><td>入金日に<strong>増える</strong></td></tr>
+    <tr><td>支出（チーム口座払い）</td><td>支払日に<strong>減る</strong></td></tr>
+    <tr><td>支出（個人立替）</td><td>立替た日には<strong>動かない</strong>。本人に返金した日に減る</td></tr>
+  </table>
+  <div class="warn">
+    <span class="label">未精算の立替はチーム残高に含まれません</span>
+    <p>誰かが自腹で払った時点では、チームの口座からはまだ1円も出ていないからです。
+    「返すべきお金」は別枠で表示され、全部返した後に残る額もあわせて出ます。
+    通帳と見比べるときは「チーム残高」を見てください。</p>
+  </div>
+
+  <h3>収入を登録する</h3>
+  <p>予算管理の画面右上、<strong>「収入を登録」</strong>から入力します。</p>
+  <ol class="steps">
+    <li><strong>入金日</strong>と<strong>金額</strong>を入れる</li>
+    <li><strong>種別</strong>を選ぶ（会費／スポンサー／繰越金／返金・払戻／その他）</li>
+    <li>会費のときは<strong>納入者</strong>を必ず選ぶ（誰がいくら払ったかの記録になります）</li>
+  </ol>
+
+  <h3>支出を登録する</h3>
+  <p>
+    <strong>「支出を登録」</strong>から入力します。いちばん大事なのは<strong>支払元</strong>です。
+    チームの口座から払ったのか、誰かが自腹で立て替えたのかを必ず選んでください。
+  </p>
+  <figure>
+    <img src="manual-assets/expense-form.png" alt="支出の登録画面">
+    <figcaption>支出の登録画面。「個人立替」を選ぶと立替者と精算状況の欄が出ます</figcaption>
+  </figure>
+  <dl class="kv">
+    <dt>チーム口座</dt><dd>チームの口座やカードから直接払った場合。登録した時点で残高が減ります。</dd>
+    <dt>個人立替</dt><dd>メンバーが自腹で払った場合。立替者を選びます。返金するまで残高は減りません。</dd>
+  </dl>
+  <p>
+    <strong>関連レース</strong>を選んでおくと、そのレースにいくらかかったかが自動で集計されます
+    （参加費・遠征費・タイヤ代など）。空欄でも構いません。
+  </p>
+
+  <h3>固定費を登録する</h3>
+  <p>
+    ガレージ代や保険のように<strong>毎月決まった日に払うもの</strong>は、「支出の種類」で
+    <strong>「固定費（毎月）」</strong>を選びます。単発との違いは<strong>毎月の支払日を入れるだけ</strong>で、
+    ほかの項目は同じです。
+  </p>
+  <figure>
+    <img src="manual-assets/expense-form-fixed.png" alt="固定費の登録画面">
+    <figcaption>固定費を選ぶと「毎月の支払日」と「終了日」が増えます</figcaption>
+  </figure>
+  <div class="note">
+    <span class="label">毎月入力し直す必要はありません</span>
+    <p>1回登録すれば、毎月の支払日が来るたびに自動で計上されます。一覧には1行だけ表示され、
+    金額は「今日までの合計」（例：毎月 ¥35,000 × 2回 = ¥70,000）になります。</p>
+    <p>解約したら<strong>終了日</strong>を入れてください。その日以降は計上されなくなり、
+    それまでの記録はそのまま残ります。</p>
+  </div>
+
+  <h3>立替を精算する</h3>
+  <p>
+    立替たお金を本人に返したら、忘れずに<strong>精算済み</strong>にしてください。
+    これをしないと、チーム残高が実際より多く見えてしまいます。
+  </p>
+  <ol class="steps">
+    <li>支出一覧の「精算」列にある<strong>「精算する」</strong>を押す（1件ずつ）</li>
+    <li>まとめて返した場合は「立替の精算状況」の<strong>「まとめて精算」</strong>を押す（その人の分が一括で処理されます）</li>
+  </ol>
+  <figure>
+    <img src="manual-assets/budget-settle.png" alt="立替の精算状況">
+    <figcaption>誰にいくら返すべきかが一覧で分かります</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════════════ 3. スプリント ══════════════════ -->
+<section>
+  <h2><span class="num">3</span>スプリント ― 予算の区切り</h2>
+
+  <h3>スプリントとは</h3>
+  <p>
+    予算を区切る単位です。<strong>区切るタイミングはチームが自由に決めます</strong>
+    （シーズンの節目、大きなレースが終わったとき、など）。
+    スプリントは<strong>名前が空のまま自動で始まります</strong>。名前は後からいつでも付けられます。
+  </p>
+  <figure>
+    <img src="manual-assets/budget-sprint.png" alt="進行中のスプリント">
+    <figcaption>進行中のスプリント。期首残高からの収支と現在の残高が並びます</figcaption>
+  </figure>
+
+  <h3>精算プランで終わらせ方を決める</h3>
+  <p>
+    スプリントを終えるときの条件を、このアプリでは次の2つと考えています。
+  </p>
+  <ul>
+    <li><strong>チーム残高がプラス</strong>であること（いくら残すかは自分たちで決める）</li>
+    <li><strong>全員の負担が同じ</strong>であること（＝精算が終わっている状態）</li>
+  </ul>
+  <p>
+    <strong>精算プラン</strong>は、その状態にするために<strong>誰にいくら返し、誰からいくら集めればよいか</strong>を
+    自動で計算します。「終了時に残すチーム残高」を入れ替えると、その場で計算し直されます。
+  </p>
+  <figure>
+    <img src="manual-assets/budget-plan.png" alt="精算プラン">
+    <figcaption>精算プラン。「やり取り」の金額を振り込めば全員の負担が揃います</figcaption>
+  </figure>
+  <div class="note">
+    <span class="label">「やり取り」の金額だけ見れば大丈夫です</span>
+    <p>立替の返金と会費の調整をあらかじめ相殺してあるので、<strong>1人につき1回の振込で完了します</strong>。
+    「41,800円返して、さらに50,400円返す」ではなく「92,200円を返金」の1回です。</p>
+  </div>
+  <h4>負担の計算のしかた</h4>
+  <p>ある人の負担は、次のように考えています。</p>
+  <div class="formula">
+    負担 ＝ 納めた会費 ＋ まだ返してもらっていない立替<br>
+    ↓ 立替を全額返すと、立替の分は負担から消える<br>
+    残る差は<strong>会費だけ</strong> → 会費の追加徴収・返金で全員を揃えられる
+  </div>
+  <p>
+    端数は1円単位まで配分されるので、精算後のチーム残高は入力した目標額とぴったり一致します
+    （人によって最大1円だけ負担が違うことがあります）。
+  </p>
+
+  <h3>スプリントを終了する</h3>
+  <ol class="steps">
+    <li>精算プランの通りに<strong>実際に振込・集金をする</strong></li>
+    <li>支出一覧で立替を<strong>「精算する」</strong>にし、会費の追加・返金を収入／支出として登録する</li>
+    <li>未精算がゼロになったことを確認して、<strong>「スプリントを終了」</strong>を押す</li>
+    <li>スプリント名（例：2026年 前半戦）と振り返りメモを入れて確定する</li>
+  </ol>
+  <figure>
+    <img src="manual-assets/close-sprint.png" alt="スプリント終了の確認画面">
+    <figcaption>終了前に収支と期末残高を確認できます。未精算が残っていると警告が出ます</figcaption>
+  </figure>
+  <div class="note">
+    <span class="label">終了すると次のスプリントが自動で始まります</span>
+    <p>「終了したのに次が無い」状態にはなりません。次のスプリントは名前が空の状態で始まります。</p>
+  </div>
+  <div class="warn">
+    <span class="label">未精算が残っていても終了はできます</span>
+    <p>止めはしませんが警告が出ます。記録は失われず「未精算のまま」として次に持ち越されます。
+    できるだけ精算を済ませてから終了してください。</p>
+  </div>
+
+  <h3>過去のスプリントを見る</h3>
+  <p>
+    ページ下部の<strong>「スプリントの記録」</strong>に、これまでの全スプリントが並びます。
+    「表示」を押すと、そのスプリントの収支・精算状況・費目別・支出／収入の一覧に切り替わります。
+  </p>
+  <figure>
+    <img src="manual-assets/budget-history.png" alt="スプリントの記録">
+    <figcaption>過去のスプリントはいつでも振り返れます</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════════════ 4. 整備記録 ══════════════════ -->
+<section>
+  <h2><span class="num">4</span>整備記録</h2>
+
+  <h3>整備を記録する</h3>
+  <p>
+    <strong>「整備を記録」</strong>から入力します。項目は5つだけです。
+  </p>
+  <figure>
+    <img src="manual-assets/maintenance-form.png" alt="整備の記録画面">
+    <figcaption>整備の記録画面</figcaption>
+  </figure>
+  <dl class="kv">
+    <dt>実施日</dt><dd>整備した日</dd>
+    <dt>区分</dt><dd>エンジン／ブレーキ／タイヤ／駆動系／オイル交換／点検・車検 など</dd>
+    <dt>走行距離</dt><dd><strong>必須</strong>。前回の記録が下に出るので参考にしてください</dd>
+    <dt>整備内容</dt><dd>例：エンジンオイル・オイルフィルター交換</dd>
+    <dt>詳細・使用部品</dt><dd>部品番号、締付トルク、気付いた点など（任意）</dd>
+  </dl>
+  <p>
+    <strong>「この整備の費用も支出として登録する」</strong>にチェックを入れると、
+    整備記録と紐付いた支出が同時に作られます。予算管理側にも自動で反映されるので、二重入力は不要です。
+  </p>
+  <figure>
+    <img src="manual-assets/maintenance.png" alt="整備記録の一覧">
+    <figcaption>整備記録の一覧。内容や部品名で検索できます</figcaption>
+  </figure>
+
+  <h3>費用をあとから追加する</h3>
+  <p>
+    費用の列に<strong>「費用を追加」</strong>ボタンがある行は、まだ金額が紐付いていない整備です。
+    領収書が後から出てきたときは、ここから登録できます。
+  </p>
+</section>
+
+<!-- ══════════════════ 5. レース管理 ══════════════════ -->
+<section>
+  <h2><span class="num">5</span>レース管理</h2>
+
+  <h3>レースを登録する</h3>
+  <p>
+    出場を検討し始めた時点で登録しておくのがおすすめです。
+    <strong>申込開始日</strong>と<strong>申込締切日</strong>を入れておくと、
+    近づいたときに画面上部で知らせてくれます。
+  </p>
+  <figure>
+    <img src="manual-assets/race-form.png" alt="レースの登録画面">
+    <figcaption>レースの登録画面</figcaption>
+  </figure>
+
+  <h3>申込状況を進める</h3>
+  <p>
+    一覧の<strong>プルダウンでその場で切り替えられます</strong>。編集画面を開く必要はありません。
+    左の色付きの丸で、どこまで進んでいるかが一目で分かります。
+  </p>
+  <table>
+    <tr><th>検討中</th><td>出るかどうか検討している</td></tr>
+    <tr><th>参加予定</th><td>出ると決めた。まだ申し込んでいない</td></tr>
+    <tr><th>申込済</th><td>申し込んだ（選ぶと申込日が自動で入ります）</td></tr>
+    <tr><th>エントリー受理</th><td>主催者側で受理された</td></tr>
+    <tr><th>終了 / 不参加 / 中止</th><td>それぞれの状態</td></tr>
+  </table>
+  <figure>
+    <img src="manual-assets/races.png" alt="レース一覧">
+    <figcaption>レース一覧。参加費の下に支払状況と実際に計上した額が出ます</figcaption>
+  </figure>
+  <p>
+    参加費を払ったら<strong>「参加費を計上」</strong>を押してください。
+    支出として登録され、同時にそのレースが「支払済」になります。
+  </p>
+
+  <h3>参加メンバーを決める</h3>
+  <p>
+    参加メンバー欄の<strong>「変更」</strong>から、出る人と役割（ドライバー／ピット／サポート）を選べます。
+    耐久のドライバーラインナップの共有に使ってください。
+  </p>
+</section>
+
+<!-- ══════════════════ 6. こんなときは ══════════════════ -->
+<section>
+  <h2><span class="num">6</span>こんなときは</h2>
+
+  <h3>よくある質問</h3>
+
+  <h4>Q. 他の人が入力したのに自分の画面が変わらない</h4>
+  <p>
+    通常は自動で反映されます。反映されないときは画面を一度リロードしてください。
+    画面右上の時刻が「いつ時点のデータか」を示しています。
+  </p>
+
+  <h4>Q. チーム残高が通帳と合わない</h4>
+  <p>
+    まず<strong>未精算の立替</strong>を確認してください。誰かに返金したのに「精算する」を押し忘れていると、
+    アプリ上の残高が実際より多くなります。「立替の精算状況」で未精算が残っていないか見てください。
+  </p>
+
+  <h4>Q. 間違えて登録した</h4>
+  <p>
+    一覧の各行にある<strong>「編集」「削除」</strong>から直せます。終了したスプリントの記録も修正できます
+    （修正すると残高も自動で計算し直されます）。
+  </p>
+
+  <h4>Q. メンバーを削除できない</h4>
+  <p>
+    立替の支払者として支出に記録されている人は削除できません。「誰が払ったか」を後から消せてしまうと
+    会計が追えなくなるためです。<strong>「名前を変更」</strong>で対応してください。
+  </p>
+
+  <h4>Q. パスワードを変えたい</h4>
+  <p>
+    Supabase の管理画面（Authentication → Users）で共有アカウントのパスワードを更新します。
+    アプリ側の変更は不要です。変更後も、すでにログイン中の人はそのまま使えます。
+  </p>
+
+  <h3>エラーが出たとき</h3>
+  <table>
+    <tr><th style="width:42%">画面に出るメッセージ</th><th>対処</th></tr>
+    <tr>
+      <td>パスワードが違うか、メールアドレスが一致していません</td>
+      <td>パスワードを確認してください。何度やっても入れない場合は管理者に連絡を。</td>
+    </tr>
+    <tr>
+      <td>通信に失敗しました</td>
+      <td>ネットワークを確認してください。しばらく使っていないとデータベースが休止していることがあります。</td>
+    </tr>
+    <tr>
+      <td>データベースの更新がまだです（列 ○○ がありません）</td>
+      <td>アプリの新機能に対してデータベース側の更新が済んでいません。管理者に連絡してください。</td>
+    </tr>
+    <tr>
+      <td>立替の場合は立替者を選んでください</td>
+      <td>支払元を「個人立替」にしたときは、立替者の選択が必須です。</td>
+    </tr>
+  </table>
+  <div class="note">
+    <span class="label">しばらく誰も使っていないとログインできないことがあります</span>
+    <p>データベースが自動で休止するためです。データが消えることはありません。
+    管理者が管理画面から復帰させれば元通り使えます。</p>
+  </div>
+</section>
+
+<!-- ══════════════════ 7. 用語集 ══════════════════ -->
+<section>
+  <h2><span class="num">7</span>用語集</h2>
+  <table>
+    <tr><th style="width:26%">用語</th><th>意味</th></tr>
+    <tr><td>チーム残高</td><td>チーム口座に今いくらあるか。通帳の残高と一致します。未精算の立替は含みません。</td></tr>
+    <tr><td>立替（たてかえ）</td><td>メンバーが自腹で払った支出。返金するまでチーム残高は減りません。</td></tr>
+    <tr><td>未精算</td><td>立替たまま、まだ本人に返していない金額。</td></tr>
+    <tr><td>精算</td><td>立替た人にチームからお金を返すこと。返したら「精算する」を押します。</td></tr>
+    <tr><td>精算後見込み残高</td><td>未精算の立替をすべて返したら、いくら残るか。</td></tr>
+    <tr><td>スプリント</td><td>予算を区切る単位。終わるタイミングはチームが決めます。</td></tr>
+    <tr><td>期首残高 / 期末残高</td><td>そのスプリントの開始時点 / 終了時点のチーム残高。</td></tr>
+    <tr><td>負担</td><td>その人が実質いくら出したか。納めた会費＋未精算の立替。</td></tr>
+    <tr><td>精算プラン</td><td>全員の負担を揃えるために、誰にいくら返し・誰から集めるかの計算結果。</td></tr>
+    <tr><td>固定費</td><td>毎月決まった日に払う支出。1回登録すれば毎月自動で計上されます。</td></tr>
+    <tr><td>発生ベース</td><td>実際にお金が動いたかに関わらず、支出が発生した時点で数える見方。「費目別の支出」はこちらです。</td></tr>
+  </table>
+
+  <div class="note" style="margin-top:26px">
+    <span class="label">このガイドについて</span>
+    <p>アプリの画面はこれからも変わっていきます。使いにくいところ、分かりにくい表示があれば
+    遠慮なく言ってください。ガイドもあわせて更新します。</p>
+  </div>
+</section>
+
+</body>
+</html>
