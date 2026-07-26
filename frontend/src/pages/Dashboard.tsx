@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Empty, Stat } from '../components/ui'
+import { Badge, Banner, Card, Empty } from '../components/ui'
 import { BalanceChart } from '../charts/BalanceChart'
 import {
   daysFromToday,
@@ -32,8 +32,6 @@ export function Dashboard() {
     .sort((a, b) => a.entry_deadline!.localeCompare(b.entry_deadline!))
 
   const recentMaintenance = maintenance.slice(0, 5)
-  const latestOdometer = maintenance.find((m) => m.odometer_km != null)?.odometer_km ?? null
-  const owed = summary.byMember.filter((m) => m.unsettled > 0)
 
   return (
     <>
@@ -48,38 +46,6 @@ export function Dashboard() {
       </div>
 
       <div className="stack">
-        <div className="grid grid--hero">
-          <Stat
-            hero
-            label="チーム残高"
-            value={formatYen(summary.teamBalance)}
-            tone={summary.teamBalance < 0 ? 'bad' : undefined}
-            note={
-              summary.unsettledTotal > 0
-                ? `未精算の立替を精算すると ${formatYen(summary.projectedBalance)}`
-                : '未精算の立替はありません'
-            }
-          />
-          <div className="grid grid--stats">
-            <Stat
-              label="未精算の立替"
-              value={formatYen(summary.unsettledTotal)}
-              tone={summary.unsettledTotal > 0 ? 'bad' : undefined}
-              note={owed.length > 0 ? owed.map((m) => m.member.name).join('・') : 'すべて精算済み'}
-            />
-            <Stat
-              label="次のレース"
-              value={upcoming[0] ? formatRelativeDays(upcoming[0].starts_on) ?? '—' : '—'}
-              note={upcoming[0] ? upcoming[0].name : '予定なし'}
-            />
-            <Stat
-              label="走行距離"
-              value={latestOdometer != null ? `${formatNumber(latestOdometer)} km` : '—'}
-              note={`整備記録 ${maintenance.length} 件`}
-            />
-          </div>
-        </div>
-
         {summary.projectedBalance < 0 ? (
           <Banner tone="critical">
             <strong>立替を全額精算すると残高が不足します。</strong> 不足額{' '}
