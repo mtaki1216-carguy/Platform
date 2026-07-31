@@ -29,9 +29,31 @@ import type { Expense, Income, Member, Sprint, UUID } from './types'
  * ────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * ── 期間の切り出し（スプリント別の集計に使う）─────────────────────────
+ *
+ *  「いつの分か」は日付で決める。固定費は1件の記録が何か月にもわたって
+ *  支払いを生むので、記録がどのスプリントで登録されたかでは決められない。
+ *  after は含まず、until は含む（境界日は前のスプリントの分として数える。
+ *  スプリントの開始日は前のスプリントの終了日と同じ日付になるため）。
+ * ────────────────────────────────────────────────────────────────────────
+ */
+export interface DateWindow {
+  /** この日より後（この日は含まない）。null なら下限なし */
+  after: string | null
+  /** この日まで（含む） */
+  until: string
+}
+
+export function inWindow(date: string, window?: DateWindow): boolean {
+  if (!window) return true
+  if (window.after !== null && date <= window.after) return false
+  return date <= window.until
+}
+
 /** 支出1件が生む「実際の支払い」を展開した姿。集計はすべてこれを通す */
 export interface ExpenseFacts {
-  /** 今日までに発生した回数（単発は常に1） */
+  /** 今日までに発生した回数（単発は常に1。window があればその期間内の回数） */
   count: number
   /** 発生ベースの合計（amount × count） */
   accrued: number
@@ -41,27 +63,40 @@ export interface ExpenseFacts {
   unsettled: number
 }
 
-export function expenseFacts(expense: Expense, asOf: string): ExpenseFacts {
+/**
+ * window を渡すと、その期間に入る分だけを切り出す。
+ * 発生（支払日）と現金流出（精算日）は別の日付になり得るので、
+ * それぞれ自分の日付で期間に入るかを判定する。
+ * 例: 4月に立替て6月に精算した支出は、発生は4月のスプリント、
+ *     口座からの流出は6月のスプリントに計上される。
+ */
+export function expenseFacts(
+  expense: Expense,
+  asOf: string,
+  window?: DateWindow,
+): ExpenseFacts {
   const dates = paymentDates(expense, asOf)
-  const count = dates.length
+  const accrualDates = dates.filter((d) => inWindow(d, window))
+  const count = accrualDates.length
   const accrued = expense.amount * count
 
   // チーム口座払いは支払日に、立替は精算してあればその日に口座から出る
+  let cash: Array<{ date: string; amount: number }> = []
   if (expense.payer_type === 'team') {
-    return { count, accrued, cashOut: dates.map((date) => ({ date, amount: expense.amount })), unsettled: 0 }
-  }
-  if (expense.reimbursed) {
+    cash = dates.map((date) => ({ date, amount: expense.amount }))
+  } else if (expense.reimbursed) {
     // 単発は精算日、固定費は毎月返している前提でその月の支払日に計上する
     const dateOf = (d: string) =>
       expense.recurrence === 'monthly' ? d : expense.reimbursed_on ?? expense.occurred_on
-    return {
-      count,
-      accrued,
-      cashOut: dates.map((d) => ({ date: dateOf(d), amount: expense.amount })),
-      unsettled: 0,
-    }
+    cash = dates.map((d) => ({ date: dateOf(d), amount: expense.amount }))
   }
-  return { count, accrued, cashOut: [], unsettled: accrued }
+
+  return {
+    count,
+    accrued,
+    cashOut: cash.filter((c) => inWindow(c.date, window)),
+    unsettled: expense.payer_type === 'member' && !expense.reimbursed ? accrued : 0,
+  }
 }
 
 /**
@@ -138,11 +173,13 @@ export function summarize(
   expenses: Expense[],
   members: Member[],
   asOf: string = today(),
+  window?: DateWindow,
 ): Summary {
-  const facts = expenses.map((e) => ({ e, f: expenseFacts(e, asOf) }))
+  const facts = expenses.map((e) => ({ e, f: expenseFacts(e, asOf, window) }))
   const cashOutOf = (x: { f: ExpenseFacts }) => sum(x.f.cashOut, (c) => c.amount)
+  const scopedIncomes = incomes.filter((i) => inWindow(i.occurred_on, window))
 
-  const totalIncome = sum(incomes, (i) => i.amount)
+  const totalIncome = sum(scopedIncomes, (i) => i.amount)
   const totalExpense = sum(facts, (x) => x.f.accrued)
 
   const paidFromTeamAccount = sum(
@@ -166,7 +203,7 @@ export function summarize(
       unsettledCount: open.length,
       advancedTotal: sum(advanced, (x) => x.f.accrued),
       feesPaid: sum(
-        incomes.filter((i) => i.member_id === member.id && i.category === 'membership_fee'),
+        scopedIncomes.filter((i) => i.member_id === member.id && i.category === 'membership_fee'),
         (i) => i.amount,
       ),
     }
@@ -204,20 +241,26 @@ export function monthlySeries(
   incomes: Income[],
   expenses: Expense[],
   asOf: string = today(),
+  window?: DateWindow,
 ): MonthlyPoint[] {
   const income = new Map<string, number>()
   const cashOut = new Map<string, number>()
 
-  for (const i of incomes) add(income, monthKey(i.occurred_on), i.amount)
+  for (const i of incomes) {
+    if (inWindow(i.occurred_on, window)) add(income, monthKey(i.occurred_on), i.amount)
+  }
   for (const e of expenses) {
     // 固定費は毎月の支払いに展開されるので、月ごとに正しく積まれる
-    for (const c of expenseFacts(e, asOf).cashOut) add(cashOut, monthKey(c.date), c.amount)
+    for (const c of expenseFacts(e, asOf, window).cashOut) add(cashOut, monthKey(c.date), c.amount)
   }
 
   const keys = [...income.keys(), ...cashOut.keys()].sort()
   if (keys.length === 0) return []
 
-  const months = fillMonths(keys[0], maxMonth(keys[keys.length - 1], currentMonth()))
+  // 終了したスプリントの表は終了月で止める（今月まで空の月を並べない）
+  const upper = window ? monthKey(window.until) : '9999-12'
+  const end = minMonth(maxMonth(keys[keys.length - 1], currentMonth()), upper)
+  const months = fillMonths(keys[0], maxMonth(end, keys[0]))
 
   let running = 0
   return months.map((month) => {
@@ -233,12 +276,16 @@ export function byCategory<T extends string>(
   expenses: Expense[],
   pick: (e: Expense) => T,
   asOf: string = today(),
+  window?: DateWindow,
 ): Array<{ key: T; amount: number; count: number }> {
   const map = new Map<T, { amount: number; count: number }>()
   for (const e of expenses) {
+    const facts = expenseFacts(e, asOf, window)
+    // 期間外の支出（固定費の別スプリント分など）はここに出さない
+    if (facts.count === 0) continue
     const key = pick(e)
     const current = map.get(key) ?? { amount: 0, count: 0 }
-    current.amount += expenseFacts(e, asOf).accrued
+    current.amount += facts.accrued
     current.count += 1
     map.set(key, current)
   }
@@ -251,7 +298,14 @@ export function byCategory<T extends string>(
  * ── スプリント単位の集計 ────────────────────────────────────────────────
  *
  *  スプリントは「精算を終えてチーム残高を確定させるまで」を1区切りとする単位。
- *  どのスプリントの記録かは sprint_id で決まる（日付では判定しない）。
+ *  どのスプリントの分かは日付で決まる（記録の sprint_id では判定しない）。
+ *  日付で決める理由:
+ *    ・固定費は1件の記録が何か月も支払いを生むので、登録したスプリントに
+ *      全部乗せると、終了したスプリントの支出が後から増え続けてしまう。
+ *    ・締めたあとに思い出した過去日付の支出も、その日付のスプリントに入る。
+ *    ・立替を別のスプリントで精算した場合、口座から出た日のスプリントに
+ *      現金流出を計上できる。
+ *
  *  期首・期末残高は保存せず毎回ここで計算する。保存すると、後から記録を
  *  修正したときに保存値と食い違うため。
  * ────────────────────────────────────────────────────────────────────────
@@ -261,6 +315,8 @@ export interface SprintTotals {
   /** 古い順の連番（表示用。1から始まる） */
   order: number
   isOpen: boolean
+  /** このスプリントが受け持つ日付の範囲 */
+  window: DateWindow
   income: number
   /** 支出の発生ベース合計（未精算の立替も含む） */
   expense: number
@@ -288,17 +344,37 @@ export function sortSprints(sprints: Sprint[]): Sprint[] {
   })
 }
 
+/**
+ * 各スプリントが受け持つ日付の範囲。
+ * ・境界日（前のスプリントの終了日）は前のスプリントの分。
+ * ・最初のスプリントは開始日より前の日付も引き受ける。
+ * ・最後のスプリントは上限なし。どのスプリントにも入らない記録を作らない
+ *   ため（合計が黙って減らないようにする）。
+ */
+export function sprintWindows(sprints: Sprint[]): DateWindow[] {
+  const ordered = sortSprints(sprints)
+  return ordered.map((sprint, index) => ({
+    after: index === 0 ? null : ordered[index - 1].ended_on ?? ordered[index - 1].started_on,
+    until: index === ordered.length - 1 ? '9999-12-31' : sprint.ended_on ?? '9999-12-31',
+  }))
+}
+
 export function sprintTotals(
   sprints: Sprint[],
   incomes: Income[],
   expenses: Expense[],
   asOf: string = today(),
 ): SprintTotals[] {
+  const windows = sprintWindows(sprints)
   let running = 0
+
   return sortSprints(sprints).map((sprint, index) => {
-    const si = incomes.filter((i) => i.sprint_id === sprint.id)
-    const se = expenses.filter((e) => e.sprint_id === sprint.id)
-    const facts = se.map((e) => ({ e, f: expenseFacts(e, asOf) }))
+    const window = windows[index]
+    const si = incomes.filter((i) => inWindow(i.occurred_on, window))
+    // 期間に1円も関わらない支出は、このスプリントの記録として数えない
+    const facts = expenses
+      .map((e) => ({ e, f: expenseFacts(e, asOf, window) }))
+      .filter((x) => x.f.count > 0 || x.f.cashOut.length > 0)
     const cashOutOf = (x: { f: ExpenseFacts }) => sum(x.f.cashOut, (c) => c.amount)
 
     const income = sum(si, (i) => i.amount)
@@ -315,6 +391,7 @@ export function sprintTotals(
       sprint,
       order: index + 1,
       isOpen: sprint.ended_on === null,
+      window,
       income,
       expense,
       paidFromTeamAccount,
@@ -325,9 +402,17 @@ export function sprintTotals(
       openingBalance,
       closingBalance: running,
       incomeCount: si.length,
-      expenseCount: se.length,
+      expenseCount: facts.length,
     }
   })
+}
+
+/** その日付を受け持つスプリント（該当なしなら null） */
+export function sprintForDate(sprints: Sprint[], date: string): Sprint | null {
+  const ordered = sortSprints(sprints)
+  const windows = sprintWindows(sprints)
+  const index = windows.findIndex((w) => inWindow(date, w))
+  return index === -1 ? null : ordered[index]
 }
 
 /** 進行中のスプリント（なければ null） */
@@ -336,8 +421,9 @@ export function openSprint(sprints: Sprint[]): Sprint | null {
 }
 
 /**
- * どのスプリントにも属していない記録の件数。
- * 通常は 0。0 でなければ画面に出して、金額が黙って消えないようにする。
+ * sprint_id が入っていない記録の件数。
+ * 集計は日付で行うので合計からは漏れない。0002 のマイグレーションを
+ * 実行したかどうかを確かめるためだけに使う。
  */
 export function unassignedCount(incomes: Income[], expenses: Expense[]): number {
   return (
@@ -498,6 +584,10 @@ function currentMonth(): string {
 
 function maxMonth(a: string, b: string): string {
   return a > b ? a : b
+}
+
+function minMonth(a: string, b: string): string {
+  return a < b ? a : b
 }
 
 /** 'YYYY-MM' の from..to を1か月刻みで列挙 */

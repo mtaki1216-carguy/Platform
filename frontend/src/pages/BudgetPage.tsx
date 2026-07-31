@@ -9,10 +9,11 @@ import { CloseSprintForm } from '../forms/CloseSprintForm'
 import {
   byCategory,
   expenseFacts,
+  inWindow,
   monthlySeries,
   settlementPlan,
   summarize,
-  unassignedCount,
+  type DateWindow,
   type SprintTotals,
   type Summary,
 } from '../lib/finance'
@@ -54,16 +55,34 @@ export function BudgetPage() {
     sprintStats.find((s) => s.isOpen) ??
     sprintStats[sprintStats.length - 1]
 
-  const orphans = unassignedCount(incomes, expenses)
-
-  /** 選択中のスプリントに属する記録だけを切り出す */
+  /**
+   * 選択中のスプリントの期間に入る記録だけを切り出す。
+   * 固定費は1件で何か月ぶんも支払いを生むので、記録そのものではなく
+   * 「その期間に入る支払い」で数える（window を各集計に渡す）。
+   */
   const scoped = useMemo(() => {
     if (!selected) {
-      return { incomes: [] as Income[], expenses: [] as Expense[], summary: summarize([], [], members), monthly: [] }
+      return {
+        incomes: [] as Income[],
+        expenses: [] as Expense[],
+        summary: summarize([], [], members),
+        monthly: [],
+        window: undefined as DateWindow | undefined,
+      }
     }
-    const si = incomes.filter((i) => i.sprint_id === selected.sprint.id)
-    const se = expenses.filter((e) => e.sprint_id === selected.sprint.id)
-    return { incomes: si, expenses: se, summary: summarize(si, se, members), monthly: monthlySeries(si, se) }
+    const w = selected.window
+    const si = incomes.filter((i) => inWindow(i.occurred_on, w))
+    const se = expenses.filter((e) => {
+      const f = expenseFacts(e, today(), w)
+      return f.count > 0 || f.cashOut.length > 0
+    })
+    return {
+      incomes: si,
+      expenses: se,
+      summary: summarize(si, se, members, today(), w),
+      monthly: monthlySeries(si, se, today(), w),
+      window: w,
+    }
   }, [selected, incomes, expenses, members])
 
   if (!selected) {
@@ -128,14 +147,6 @@ export function BudgetPage() {
       </div>
 
       <div className="stack">
-        {orphans > 0 ? (
-          <Banner tone="warning">
-            <strong>どのスプリントにも属していない記録が {orphans} 件あります。</strong>{' '}
-            スプリント別の集計には出てきません。`supabase/migrations/0002_sprints.sql` を実行すると
-            最初のスプリントに割り当てられます。
-          </Banner>
-        ) : null}
-
         {summary.projectedBalance < 0 ? (
           <Banner tone="critical">
             <strong>未精算の立替を全額返すと、チーム残高がマイナスになります。</strong>{' '}
@@ -234,9 +245,13 @@ export function BudgetPage() {
 
         <SettlementCard summary={scoped.summary} expenses={scoped.expenses} />
 
-        <CategoryBreakdown expenses={scoped.expenses} />
+        <CategoryBreakdown expenses={scoped.expenses} sprintWindow={scoped.window} />
 
-        <ExpenseTable expenses={scoped.expenses} defaultMemberId={selfId} />
+        <ExpenseTable
+          expenses={scoped.expenses}
+          sprintWindow={scoped.window}
+          defaultMemberId={selfId}
+        />
 
         <IncomeTable incomes={scoped.incomes} defaultMemberId={selfId} />
 
@@ -597,8 +612,17 @@ function SettlementCard({ summary, expenses }: { summary: Summary; expenses: Exp
 }
 
 /** 費目別の支出（単一の指標なので色は1つ。値は棒の先に直接置く） */
-function CategoryBreakdown({ expenses }: { expenses: Expense[] }) {
-  const rows = useMemo(() => byCategory(expenses, (e) => e.category), [expenses])
+function CategoryBreakdown({
+  expenses,
+  sprintWindow,
+}: {
+  expenses: Expense[]
+  sprintWindow?: DateWindow
+}) {
+  const rows = useMemo(
+    () => byCategory(expenses, (e) => e.category, today(), sprintWindow),
+    [expenses, sprintWindow],
+  )
   if (rows.length === 0) return null
   const max = rows[0].amount
 
@@ -623,9 +647,11 @@ function CategoryBreakdown({ expenses }: { expenses: Expense[] }) {
 
 function ExpenseTable({
   expenses,
+  sprintWindow,
   defaultMemberId,
 }: {
   expenses: Expense[]
+  sprintWindow?: DateWindow
   defaultMemberId: string
 }) {
   const { races, members, memberName, update, remove } = useTeamData()
@@ -650,7 +676,8 @@ function ExpenseTable({
   })
 
   // 固定費は今日までの回数ぶんが発生額。単発は1回分
-  const factsOf = new Map(filtered.map((e) => [e.id, expenseFacts(e, today())]))
+  // スプリントを選んでいるときは、その期間に入る回数だけを数える
+  const factsOf = new Map(filtered.map((e) => [e.id, expenseFacts(e, today(), sprintWindow)]))
   const total = filtered.reduce((sum, e) => sum + (factsOf.get(e.id)?.accrued ?? e.amount), 0)
 
   async function onDelete(e: Expense) {

@@ -35,10 +35,12 @@ begin
       select (select count(*) from public.incomes  where sprint_id is null)
            + (select count(*) from public.expenses where sprint_id is null) as n
     )
-    select 7.6::numeric, 'スプリント未割り当ての記録'::text,
+    -- 集計は日付で行うので、未割り当てでも金額は漏れない。
+    -- 0002 のバックフィルが走ったかどうかの確認用。
+    select 7.6::numeric, 'sprint_id 未設定の記録'::text,
            (n || ' 件')::text,
            (case when n = 0 then 'OK'
-                 else '0002_sprints.sql を実行してください' end)::text
+                 else '0002_sprints.sql のバックフィルが未実行（集計は日付で行うため金額は正しく出ます）' end)::text
     from orphan
   $q$;
 end $fn$;
