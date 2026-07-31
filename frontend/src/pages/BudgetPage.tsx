@@ -228,6 +228,7 @@ export function BudgetPage() {
               {selected.sprint.note}
             </p>
           ) : null}
+          {selected.isOpen ? <CloseGate totals={selected} /> : null}
         </Card>
 
         {selected.isOpen ? (
@@ -283,6 +284,43 @@ export function BudgetPage() {
         </Modal>
       ) : null}
     </>
+  )
+}
+
+/**
+ * このスプリントを終われる状態かを1か所で言う。
+ * 終了条件は「チーム残高がプラス」かつ「未精算の立替がゼロ」。
+ * レールは立替の精算がどこまで進んだか（精算済 ÷ 立替の総額）。
+ * 新しい計算はしない。すべて集計済みの値から出す。
+ */
+function CloseGate({ totals }: { totals: SprintTotals }) {
+  const advanced = totals.reimbursedTotal + totals.unsettled
+  const settled = advanced === 0 ? 1 : totals.reimbursedTotal / advanced
+  const pct = Math.round(settled * 100)
+  const balanceOk = totals.closingBalance >= 0
+  const settledOk = totals.unsettled === 0
+
+  return (
+    <div className="gate">
+      <span className="gate__label">終了条件</span>
+      <div className="gate__track">
+        <span className="gate__rail">
+          <span
+            className={`gate__fill${settledOk ? ' is-done' : ''}`}
+            style={{ width: `${pct}%` }}
+          />
+        </span>
+        <span className="gate__pct">
+          {advanced === 0 ? '立替なし' : `立替の精算 ${pct}%`}
+        </span>
+      </div>
+      <ul className="gate__conds">
+        <li className={balanceOk ? 'is-met' : undefined}>残高がプラス</li>
+        <li className={settledOk ? 'is-met' : undefined}>
+          {settledOk ? '未精算ゼロ' : `未精算 ${formatYen(totals.unsettled)}`}
+        </li>
+      </ul>
+    </div>
   )
 }
 

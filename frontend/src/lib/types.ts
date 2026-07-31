@@ -152,13 +152,13 @@ export const RACE_STATUS_TONE: Record<RaceStatus, string> = {
  * 色だけで意味を運ばせないよう、必ずラベル（プルダウンの文字）の隣に置く。
  */
 export const RACE_STATUS_COLOR: Record<RaceStatus, string> = {
-  considering: '#898781',
-  planned: '#2a78d6',
-  applied: '#fab219',
-  accepted: '#0ca30c',
-  declined: '#c3c2b7',
-  finished: '#898781',
-  cancelled: '#d03b3b',
+  considering: '#8b8f99',
+  planned: '#5b5bd6',
+  applied: '#d99100',
+  accepted: '#197a4b',
+  declined: '#c5c8ce',
+  finished: '#8b8f99',
+  cancelled: '#c2352b',
 }
 
 export interface Race {

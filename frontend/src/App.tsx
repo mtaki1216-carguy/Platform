@@ -105,7 +105,7 @@ function SyncIndicator({ loading, at }: { loading: boolean; at: Date | null }) {
   const time = at.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
   return (
     <span title="他の端末での変更は自動で反映されます">
-      <span className="dot" style={{ background: '#0ca30c', marginRight: 6 }} />
+      <span className="dot" style={{ background: 'var(--good)', marginRight: 6 }} />
       {time} 時点
     </span>
   )

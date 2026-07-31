@@ -20,7 +20,7 @@ export function TeamMark({ size = 22 }: { size?: number }) {
       aria-hidden="true"
       style={{ width: size, height: size }}
     >
-      <rect width={size} height={size} rx={size / 6} fill="#0b0b0b" />
+      <rect width={size} height={size} rx={size / 6} fill="#23252b" />
       {filled.map(([cx, cy]) => (
         <rect key={`${cx}-${cy}`} x={cx * cell} y={cy * cell} width={cell} height={cell} fill="#ffffff" />
       ))}
