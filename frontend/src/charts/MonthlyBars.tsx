@@ -32,7 +32,12 @@ export function MonthlyBars({ data }: { data: MonthlyPoint[] }) {
   const y = (v: number) => plotH - (v / yMax) * plotH
 
   const band = plotW / data.length
-  const barW = Math.min(MAX_BAR, Math.max(3, (band * 0.62 - GAP) / 2))
+  /*
+   * 月が数か月しかないスプリントでは、細い棒が広い帯の中で点のように見える。
+   * 3〜4か月のときだけ棒を太らせて、図として読めるようにする。
+   */
+  const maxBar = data.length <= 4 ? Math.min(56, band * 0.26) : MAX_BAR
+  const barW = Math.min(maxBar, Math.max(3, (band * 0.62 - GAP) / 2))
   const groupW = barW * 2 + GAP
   const active = hover === null ? null : data[hover]
   const labelEvery = Math.max(1, Math.ceil(data.length / Math.max(2, Math.floor(plotW / 46))))
@@ -72,7 +77,7 @@ export function MonthlyBars({ data }: { data: MonthlyPoint[] }) {
                 {/* 帯全体を当たり判定にする（細い棒を狙わせない） */}
                 <rect x={i * band} y={0} width={band} height={plotH} fill="transparent" />
                 {hover === i ? (
-                  <rect x={i * band} y={0} width={band} height={plotH} fill="#0b0b0b" opacity={0.03} />
+                  <rect x={i * band} y={0} width={band} height={plotH} fill="#23252b" opacity={0.035} />
                 ) : null}
                 <path d={columnPath(left, y(d.income), barW, plotH - y(d.income))} fill={INCOME} />
                 <path

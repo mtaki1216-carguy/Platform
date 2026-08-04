@@ -383,6 +383,26 @@ a {
   font-weight: 600;
 }
 
+/* 演算子。数字を等幅で始めたいので幅を固定して桁位置を合わせる */
+.sprint-figures__op {
+  display: inline-block;
+  width: 0.7em;
+  margin-right: 1px;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.sprint-figures dd .sub {
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+/* 未精算の立替は口座の外の話。計算の並びから切り離す */
+.sprint-figures > .is-aside {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+}
+
 /*
  * ── 終了条件ゲート ────────────────────────────────────────────────
  *  このスプリントを終われる状態かを1か所で言う。
@@ -1397,6 +1417,15 @@ tfoot .num {
 
   .sprint-figures dd {
     font-size: 18px;
+  }
+
+  /* 折り返すと左の罫線が行頭に浮くので、上の罫線に切り替える */
+  .sprint-figures > .is-aside {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 12px;
+    grid-column: 1 / -1;
   }
 }
 

@@ -193,6 +193,12 @@ export function BudgetPage() {
             </div>
           }
         >
+          {/*
+            期首 + 収入 − 支出 = 現在の残高。この4つは1本の計算なので、演算子を
+            添えてつながりが読めるようにする（並べただけだと、6つの対等な数字に
+            見えて関係が消える）。収支はこの計算の差分なので残高の下に小さく置く。
+            未精算の立替は口座の外の話なので、罫線で区切って別扱いにする。
+          */}
           <dl className="sprint-figures">
             <div>
               <dt>期首残高</dt>
@@ -200,26 +206,43 @@ export function BudgetPage() {
             </div>
             <div>
               <dt>収入</dt>
-              <dd>{formatYen(selected.income)}</dd>
+              <dd>
+                <span className="sprint-figures__op" aria-hidden="true">
+                  +
+                </span>
+                {formatYen(selected.income)}
+              </dd>
             </div>
             <div>
               <dt>支出（口座から）</dt>
-              <dd>{formatYen(selected.cashOut)}</dd>
-            </div>
-            <div>
-              <dt>収支</dt>
-              <dd className={selected.net < 0 ? 'value-bad' : selected.net > 0 ? 'value-good' : ''}>
-                {formatYenSigned(selected.net)}
+              <dd>
+                <span className="sprint-figures__op" aria-hidden="true">
+                  −
+                </span>
+                {formatYen(selected.cashOut)}
               </dd>
             </div>
             <div>
               <dt>{selected.isOpen ? '現在の残高' : '期末残高'}</dt>
-              <dd>{formatYen(selected.closingBalance)}</dd>
+              <dd>
+                <span className="sprint-figures__op" aria-hidden="true">
+                  =
+                </span>
+                {formatYen(selected.closingBalance)}
+                <span
+                  className={`sub ${
+                    selected.net < 0 ? 'value-bad' : selected.net > 0 ? 'value-good' : ''
+                  }`}
+                >
+                  このスプリントで {formatYenSigned(selected.net)}
+                </span>
+              </dd>
             </div>
-            <div>
+            <div className="is-aside">
               <dt>未精算の立替</dt>
               <dd className={selected.unsettled > 0 ? 'value-bad' : ''}>
                 {formatYen(selected.unsettled)}
+                <span className="sub">返す予定。残高には含みません</span>
               </dd>
             </div>
           </dl>
