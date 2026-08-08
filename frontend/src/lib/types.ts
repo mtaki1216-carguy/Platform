@@ -29,6 +29,8 @@ export interface Member {
 export const INCOME_CATEGORIES = {
   membership_fee: '会費',
   sponsor: 'スポンサー',
+  /* チームの部品・備品を売ったお金。チーム口座への入金として数える */
+  parts_sale: '部品売却',
   carryover: '繰越金',
   refund: '返金・払戻',
   other: 'その他',

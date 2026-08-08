@@ -22,8 +22,16 @@ export function IncomeForm({
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '')
   const [note, setNote] = useState(initial?.note ?? '')
 
-  // 会費は誰が納めたかが本質なので必須。スポンサー等は個人に紐付かない
+  // 会費は誰が納めたかが本質なので必須。部品売却やスポンサーは個人に紐付かない
   const needsMember = category === 'membership_fee'
+
+  // 何を書けばいいかが分かる例を種別ごとに出す
+  const notePlaceholder =
+    category === 'parts_sale'
+      ? '例: 旧ホイール4本'
+      : category === 'membership_fee'
+        ? '例: 2026年上期分'
+        : '例: 何の入金か'
 
   const { busy, error, handle } = useSubmit(async () => {
     const row = {
@@ -86,7 +94,12 @@ export function IncomeForm({
         </Field>
 
         <Field label="メモ" wide>
-          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="例: 2026年上期分" />
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={notePlaceholder}
+          />
         </Field>
       </div>
 

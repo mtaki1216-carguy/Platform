@@ -145,6 +145,17 @@ select 項目, 結果, 判定 from (
 
   union all
 
+  -- 列ではなく制約で弾かれるものは、許可リストの中身を見て判定する
+  select 7.4, '収入の種別: 部品売却',
+         case when count(*) = 1 then '許可あり' else '許可なし' end,
+         case when count(*) = 1 then 'OK'
+              else '0004_income_parts_sale.sql を実行してください' end
+  from pg_constraint
+  where conrelid = 'public.incomes'::regclass and contype = 'c'
+    and pg_get_constraintdef(oid) like '%parts_sale%'
+
+  union all
+
   -- 進行中スプリントの有無と、未割り当ての記録がないか
   select * from pg_temp.sprint_checks()
 

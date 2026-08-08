@@ -64,6 +64,10 @@ export function describeError(error: unknown): string {
   if (/violates foreign key .*expenses_paid_by/i.test(message)) {
     return 'このメンバーは立替の支払者として支出に記録されているため削除できません。記録を残す必要があるので、削除ではなく名前の変更で対応してください'
   }
+  // 許可リストに無い値を入れたときの案内。列ではなく制約で弾かれるので別に見る
+  if (/incomes_category_check|violates check constraint .*incomes/i.test(message)) {
+    return 'この収入の種別はデータベース側でまだ許可されていません。Supabase の SQL Editor で supabase/migrations/0004_income_parts_sale.sql を実行してください'
+  }
   if (/expenses_payer_consistency/i.test(message)) {
     return '立替の場合は立替者を選んでください'
   }

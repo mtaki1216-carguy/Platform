@@ -4,7 +4,7 @@
 
 | 機能 | 内容 |
 | --- | --- |
-| ① 予算管理 | 収入（会費・スポンサー）と支出（チーム口座払い／個人立替）から、**チーム残高をリアルタイムに表示**。個人立替は精算状況まで管理し、「誰にいくら返すべきか」が一覧で分かります。予算は**スプリント単位**で区切り、終了したスプリントの記録はいつでも振り返れます。 |
+| ① 予算管理 | 収入（会費・スポンサー・部品売却など）と支出（チーム口座払い／個人立替）から、**チーム残高をリアルタイムに表示**。個人立替は精算状況まで管理し、「誰にいくら返すべきか」が一覧で分かります。予算は**スプリント単位**で区切り、終了したスプリントの記録はいつでも振り返れます。 |
 | ② 整備記録 | 整備内容を実施日・走行距離・区分とあわせてデータベースに保存。費用は支出として①に連動。 |
 | ③ レース管理 | 出場予定レースの日程・参加費・申込開始日／締切日／申込日を保存。**各レースの申込状況が一覧で一目で分かり**、その場で状況を進められます。 |
 
@@ -16,6 +16,7 @@ Platform/
 │   ├── migrations/0001_init.sql   ← テーブル・RLS・Realtime の定義
 │   ├── migrations/0002_sprints.sql ← スプリント（予算の区切り）
 │   ├── migrations/0003_recurring_expenses.sql ← 固定費（毎月払い）
+│   ├── migrations/0004_income_parts_sale.sql  ← 収入の種別に部品売却を追加
 │   ├── seed.sql                   ← メンバー5名の初期データ
 │   └── verify.sql                 ← セットアップが揃っているかの確認用
 └── frontend/                      ← React + TypeScript + Vite（Vercel にデプロイ）
@@ -36,8 +37,8 @@ Platform/
 1. [supabase.com](https://supabase.com) で無料アカウントを作り、新規プロジェクトを作成します。
    リージョンは **Northeast Asia (Tokyo)** が最も速いです。
 2. 左メニューの **SQL Editor** を開き、`supabase/migrations/0001_init.sql` の中身を全部貼り付けて **Run**。
-3. 続けて `supabase/migrations/0002_sprints.sql`、`supabase/migrations/0003_recurring_expenses.sql`
-   を順に貼り付けて **Run**。
+3. 続けて `supabase/migrations/0002_sprints.sql`、`supabase/migrations/0003_recurring_expenses.sql`、
+   `supabase/migrations/0004_income_parts_sale.sql` を順に貼り付けて **Run**。
 4. 同じく `supabase/seed.sql` を貼り付けて **Run**（メンバー5名が登録されます）。
 5. 確認として `supabase/verify.sql` を貼り付けて **Run**。
    「判定」列がすべて `OK` になっていれば手順1・2は完了です。
@@ -46,7 +47,7 @@ Platform/
 > **マイグレーションを追加したときは、必ず `supabase/migrations/` の未実行分を順に実行してください。**
 > 列が足りないまま使うと、登録時に
 > `Could not find the 'xxx' column of 'expenses' in the schema cache` というエラーになります。
-> `verify.sql` の「列:」で始まる行を見れば、どれが未実行か分かります。
+> `verify.sql` の「列:」「収入の種別:」で始まる行を見れば、どれが未実行か分かります。
 > 各マイグレーションの末尾には `notify pgrst, 'reload schema';` を入れてあるので、
 > 実行すれば API 側にもすぐ反映されます。
 
@@ -240,7 +241,7 @@ npm run dev      # http://localhost:5173
 | テーブル | 役割 | 主な列 |
 | --- | --- | --- |
 | `members` | メンバー | `name`, `sort_order` |
-| `incomes` | 収入 | `sprint_id`, `occurred_on`, `category`(会費/スポンサー/繰越/返金), `member_id`, `amount` |
+| `incomes` | 収入 | `sprint_id`, `occurred_on`, `category`(会費/スポンサー/部品売却/繰越/返金/その他), `member_id`, `amount` |
 | `expenses` | 支出（金額の唯一の置き場） | `sprint_id`, `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id`, `recurrence`(once/monthly), `payment_day`, `recurrence_ends_on` |
 | `sprints` | 予算の区切り | `name`(未入力可), `started_on`, `ended_on`(null=進行中), `note` |
 | `maintenance_records` | 整備記録 | `performed_on`, `odometer_km`, `category`, `title`, `detail` |
