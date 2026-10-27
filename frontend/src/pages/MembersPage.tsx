@@ -7,7 +7,7 @@ import { formatYen } from '../lib/format'
 import type { Member } from '../lib/types'
 
 export function MembersPage() {
-  const { members, summary, insert, update, remove } = useTeamData()
+  const { members, summary, insert, update, remove, sharedExpenses, shares } = useTeamData()
   const { selfId, setSelfId, selfName } = useSelfMember()
 
   const [adding, setAdding] = useState(false)
@@ -37,6 +37,10 @@ export function MembersPage() {
    * 「誰が払ったか」を後から消せてしまうと会計が追えなくなるため、これは意図した制約。
    */
   function blockedReason(m: Member): string | null {
+    // 割り勘の立替者・対象メンバーも DB 側（on delete restrict）で削除できない
+    if (sharedExpenses.some((e) => e.paid_by === m.id) || shares.some((s) => s.member_id === m.id)) {
+      return '割り勘の記録に含まれているため削除できません。名前の変更で対応してください。'
+    }
     const balance = summary.byMember.find((b) => b.member.id === m.id)
     if (!balance) return null
     if (balance.unsettledCount > 0) {

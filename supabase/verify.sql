@@ -156,6 +156,17 @@ select 項目, 結果, 判定 from (
 
   union all
 
+  -- 割り勘（メンバー間の貸し借り）用の2テーブル
+  select 7.45, 'テーブル: 割り勘',
+         count(*) || ' / 2',
+         case when count(*) = 2 then 'OK'
+              else '0005_shared_expenses.sql を実行してください（実行するまで割り勘は使えません）' end
+  from information_schema.tables
+  where table_schema = 'public'
+    and table_name in ('shared_expenses', 'shared_expense_shares')
+
+  union all
+
   -- 進行中スプリントの有無と、未割り当ての記録がないか
   select * from pg_temp.sprint_checks()
 

@@ -96,6 +96,35 @@ export interface Expense {
   recurrence_ends_on: ISODate | null
 }
 
+/**
+ * 割り勘（メンバー間の貸し借り）。チーム口座を通らないので expenses とは別に持ち、
+ * チーム残高・未精算の立替・費目別の集計には含めない。
+ */
+export interface SharedExpense {
+  id: UUID
+  occurred_on: ISODate
+  category: ExpenseCategory | null
+  description: string
+  amount: number
+  /** 立て替えた人。対象メンバーに返してもらう側 */
+  paid_by: UUID
+  race_id: UUID | null
+  note: string | null
+  created_at: string
+}
+
+/** 割り勘の対象メンバー1人ぶんの負担額 */
+export interface SharedShare {
+  id: UUID
+  shared_expense_id: UUID
+  member_id: UUID
+  amount: number
+  /** 立替者に返済済みか。立替者本人の分は最初から true */
+  settled: boolean
+  settled_on: ISODate | null
+  created_at: string
+}
+
 export const MAINTENANCE_CATEGORIES = {
   engine: 'エンジン',
   brake: 'ブレーキ',

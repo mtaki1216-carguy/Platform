@@ -1,5 +1,5 @@
 import { monthKey, today } from './format'
-import type { Expense, Income, Member, Sprint, UUID } from './types'
+import type { Expense, Income, Member, SharedExpense, SharedShare, Sprint, UUID } from './types'
 
 /**
  * ── 残高の考え方（機能①の定義） ─────────────────────────────────────────
@@ -557,6 +557,71 @@ export function settlementPlan(
     targetIsPositive: targetBalance >= 0,
     needsCollection: settlements.some((m) => m.transfer < 0),
   }
+}
+
+/**
+ * ── 割り勘（メンバー間の貸し借り）──────────────────────────────────
+ *  チーム口座を通らないので、残高・未精算の立替・精算プランには含めない。
+ *  ここでは「誰が誰にいくら返すべきか」だけを数える。
+ * ────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * 金額を人数で均等に割る。割り切れない端数は1円ずつ配り、合計が必ず amount と一致する。
+ * 端数は立替者が対象に入っていれば立替者から（本人が少し多く持つ）、
+ * その後は memberIds の並び順で配る。
+ */
+export function splitEvenly(
+  amount: number,
+  memberIds: UUID[],
+  payerId: UUID | null,
+): Array<{ memberId: UUID; amount: number }> {
+  const n = memberIds.length
+  if (n === 0) return []
+
+  const base = Math.floor(amount / n)
+  let remainder = amount - base * n
+
+  // 端数をもらう順番。立替者を先頭に、あとは元の並び
+  const order = [...memberIds].sort((a, b) => Number(b === payerId) - Number(a === payerId))
+  const extra = new Set<UUID>()
+  for (const id of order) {
+    if (remainder <= 0) break
+    extra.add(id)
+    remainder -= 1
+  }
+
+  return memberIds.map((memberId) => ({
+    memberId,
+    amount: base + (extra.has(memberId) ? 1 : 0),
+  }))
+}
+
+/** 「debtor が creditor に返す」未返済額 */
+export interface SharedDebt {
+  debtorId: UUID
+  creditorId: UUID
+  amount: number
+  count: number
+}
+
+/** 未返済の割り勘を、(返す人 → 受け取る人) ごとに集計する */
+export function sharedDebts(sharedExpenses: SharedExpense[], shares: SharedShare[]): SharedDebt[] {
+  const payerOf = new Map(sharedExpenses.map((e) => [e.id, e.paid_by]))
+  const map = new Map<string, SharedDebt>()
+
+  for (const s of shares) {
+    if (s.settled || s.amount <= 0) continue
+    const creditorId = payerOf.get(s.shared_expense_id)
+    if (!creditorId || creditorId === s.member_id) continue
+    const key = `${s.member_id}>${creditorId}`
+    const cur = map.get(key) ?? { debtorId: s.member_id, creditorId, amount: 0, count: 0 }
+    cur.amount += s.amount
+    cur.count += 1
+    map.set(key, cur)
+  }
+
+  return [...map.values()].sort((a, b) => b.amount - a.amount)
 }
 
 /** そのレースに紐づく支出の合計 */

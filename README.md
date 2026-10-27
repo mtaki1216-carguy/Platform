@@ -17,6 +17,7 @@ Platform/
 │   ├── migrations/0002_sprints.sql ← スプリント（予算の区切り）
 │   ├── migrations/0003_recurring_expenses.sql ← 固定費（毎月払い）
 │   ├── migrations/0004_income_parts_sale.sql  ← 収入の種別に部品売却を追加
+│   ├── migrations/0005_shared_expenses.sql    ← 割り勘（メンバー間の貸し借り）
 │   ├── seed.sql                   ← メンバー5名の初期データ
 │   └── verify.sql                 ← セットアップが揃っているかの確認用
 └── frontend/                      ← React + TypeScript + Vite（Vercel にデプロイ）
@@ -38,7 +39,8 @@ Platform/
    リージョンは **Northeast Asia (Tokyo)** が最も速いです。
 2. 左メニューの **SQL Editor** を開き、`supabase/migrations/0001_init.sql` の中身を全部貼り付けて **Run**。
 3. 続けて `supabase/migrations/0002_sprints.sql`、`supabase/migrations/0003_recurring_expenses.sql`、
-   `supabase/migrations/0004_income_parts_sale.sql` を順に貼り付けて **Run**。
+   `supabase/migrations/0004_income_parts_sale.sql`、`supabase/migrations/0005_shared_expenses.sql` を
+   順に貼り付けて **Run**。（0005 を実行するまでは割り勘だけが使えません。ほかの機能は動きます）
 4. 同じく `supabase/seed.sql` を貼り付けて **Run**（メンバー5名が登録されます）。
 5. 確認として `supabase/verify.sql` を貼り付けて **Run**。
    「判定」列がすべて `OK` になっていれば手順1・2は完了です。
@@ -168,6 +170,23 @@ npm run dev      # http://localhost:5173
 > （毎月ぶんを個別に精算済みにはできません）。精算済みにすると、それまでの
 > 各支払日に返金したものとして扱います。固定費はチーム口座払いにしておくのが素直です。
 
+### 割り勘（メンバーを限定した支出）
+
+支出の登録で **個人立替** を選ぶと「メンバーを限定して登録する」が出ます。チェックを入れると、
+割り勘の対象メンバーを選べます（初期値は全員）。金額は人数で **均等割り** で、割り切れない
+端数は1円ずつ配ります（立替者が対象に入っていれば、立替者から）。合計は必ず元の金額と一致します。
+
+割り勘は **チーム口座を通らない、メンバー間の貸し借り** です。そのため
+
+- チーム残高・未精算の立替・精算プラン・費目別の集計には **含まれません**
+- `expenses` ではなく専用の2テーブル（`shared_expenses` / `shared_expense_shares`）に保存します
+- 予算管理画面の「割り勘（メンバー間の貸し借り）」に、誰が誰にいくら返すかを出します。
+  返してもらったら人ごとに「返済済みにする」を押します（立替者本人の分は最初から返済済み）
+- 割り勘の記録に含まれるメンバーは、メンバー画面から削除できません（会計が追えなくなるため）
+
+固定費（毎月）、整備記録に紐づく費用、既存の支出の編集では割り勘は選べません。
+間違えたときは、割り勘の行を削除して登録し直してください。
+
 ### スプリント（予算の区切り）
 
 予算はスプリント単位で管理します。区切るタイミングはチームが決めます
@@ -243,6 +262,8 @@ npm run dev      # http://localhost:5173
 | `members` | メンバー | `name`, `sort_order` |
 | `incomes` | 収入 | `sprint_id`, `occurred_on`, `category`(会費/スポンサー/部品売却/繰越/返金/その他), `member_id`, `amount` |
 | `expenses` | 支出（金額の唯一の置き場） | `sprint_id`, `occurred_on`, `category`, `amount`, `payer_type`(team/member), `paid_by`, `reimbursed`, `reimbursed_on`, `race_id`, `maintenance_id`, `recurrence`(once/monthly), `payment_day`, `recurrence_ends_on` |
+| `shared_expenses` | 割り勘（メンバー間の貸し借り）。チーム口座を通らない | `occurred_on`, `description`, `amount`, `paid_by`, `race_id` |
+| `shared_expense_shares` | 割り勘の対象メンバーごとの負担額 | `shared_expense_id`, `member_id`, `amount`, `settled`, `settled_on` |
 | `sprints` | 予算の区切り | `name`(未入力可), `started_on`, `ended_on`(null=進行中), `note` |
 | `maintenance_records` | 整備記録 | `performed_on`, `odometer_km`, `category`, `title`, `detail` |
 | `races` | レース | `name`, `circuit`, `starts_on`, `ends_on`, `entry_fee`, `entry_opens_on`, `entry_deadline`, `applied_on`, `status`, `fee_paid` |

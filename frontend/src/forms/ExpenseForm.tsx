@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { Field } from '../components/ui'
-import { formatDateRange, today } from '../lib/format'
+import { formatDateRange, formatYen, today } from '../lib/format'
+import { splitEvenly } from '../lib/finance'
 import {
   EXPENSE_CATEGORIES,
   type Expense,
@@ -34,7 +35,8 @@ export function ExpenseForm({
   onSaved?: () => Promise<void> | void
   onDone: () => void
 }) {
-  const { members, races, insert, update, ensureOpenSprint } = useTeamData()
+  const { members, races, insert, update, ensureOpenSprint, createSharedExpense, sharedAvailable } =
+    useTeamData()
 
   const [occurredOn, setOccurredOn] = useState(initial?.occurred_on ?? today())
   const [category, setCategory] = useState<ExpenseCategory>(
@@ -58,14 +60,66 @@ export function ExpenseForm({
   )
   const [endsOn, setEndsOn] = useState(initial?.recurrence_ends_on ?? '')
 
+  // 割り勘：対象メンバーを限定して、立替者に返す金額を人数で均等に割る
+  const [limitMembers, setLimitMembers] = useState(false)
+  const [splitIds, setSplitIds] = useState<string[]>(() => members.map((m) => m.id))
+
   const isAdvance = payerType === 'member'
   const isMonthly = recurrence === 'monthly'
+  // 割り勘は新規の単発の立替だけ。整備記録に紐づく費用は紐付けが切れるので対象外
+  const splitOffered = !initial && isAdvance && !isMonthly && !preset?.maintenanceId
+  const splitting = splitOffered && sharedAvailable && limitMembers
+
+  const splitAmount = Math.round(Number(amount))
+  const splitRows =
+    splitting && Number.isFinite(splitAmount) && splitAmount > 0
+      ? splitEvenly(
+          splitAmount,
+          members.filter((m) => splitIds.includes(m.id)).map((m) => m.id),
+          paidBy || null,
+        )
+      : []
+  const shareOf = (id: string) => splitRows.find((r) => r.memberId === id)?.amount
+
+  function toggleSplitMember(id: string, on: boolean) {
+    setSplitIds((prev) => (on ? [...prev, id] : prev.filter((x) => x !== id)))
+  }
 
   const { busy, error, handle } = useSubmit(async () => {
     const value = Math.round(Number(amount))
     if (!Number.isFinite(value) || value <= 0) throw new Error('金額は1円以上で入力してください')
     if (!description.trim()) throw new Error('内容を入力してください')
     if (isAdvance && !paidBy) throw new Error('立替の場合は立替者を選んでください')
+
+    if (splitting) {
+      if (!splitIds.some((id) => id !== paidBy)) {
+        throw new Error('立替者のほかに、割り勘の対象メンバーを1人以上選んでください')
+      }
+      const shares = splitEvenly(
+        value,
+        members.filter((m) => splitIds.includes(m.id)).map((m) => m.id),
+        paidBy,
+      ).map((r) => ({
+        member_id: r.memberId,
+        amount: r.amount,
+        // 立替者本人の分は、自分に返す必要がないので最初から返済済み
+        settled: r.memberId === paidBy,
+      }))
+      await createSharedExpense(
+        {
+          occurred_on: occurredOn,
+          category,
+          description: description.trim(),
+          amount: value,
+          paid_by: paidBy,
+          race_id: raceId || null,
+          note: nullable(note),
+        },
+        shares,
+      )
+      await onSaved?.()
+      return
+    }
 
     let day: number | null = null
     if (isMonthly) {
@@ -230,19 +284,21 @@ export function ExpenseForm({
               </select>
             </Field>
 
-            <Field label="精算状況">
-              <div className="checkbox-row" style={{ paddingTop: 7 }}>
-                <input
-                  id="reimbursed"
-                  type="checkbox"
-                  checked={reimbursed}
-                  onChange={(e) => setReimbursed(e.target.checked)}
-                />
-                <label htmlFor="reimbursed">精算済み（本人に返金した）</label>
-              </div>
-            </Field>
+            {splitting ? null : (
+              <Field label="精算状況">
+                <div className="checkbox-row" style={{ paddingTop: 7 }}>
+                  <input
+                    id="reimbursed"
+                    type="checkbox"
+                    checked={reimbursed}
+                    onChange={(e) => setReimbursed(e.target.checked)}
+                  />
+                  <label htmlFor="reimbursed">精算済み（本人に返金した）</label>
+                </div>
+              </Field>
+            )}
 
-            {reimbursed ? (
+            {reimbursed && !splitting ? (
               <Field label="精算日" required>
                 <input
                   type="date"
@@ -251,6 +307,62 @@ export function ExpenseForm({
                   required
                 />
               </Field>
+            ) : null}
+          </>
+        ) : null}
+
+        {splitOffered ? (
+          <>
+            <Field
+              label="割り勘"
+              wide
+              hint={
+                sharedAvailable
+                  ? '立替者以外の対象メンバーが、立替者に均等に返します。チーム口座は通らず、チーム残高にも含まれません'
+                  : '割り勘を使うには、データベースに supabase/migrations/0005_shared_expenses.sql を実行してください'
+              }
+            >
+              <div className="checkbox-row">
+                <input
+                  id="limit-members"
+                  type="checkbox"
+                  checked={limitMembers && sharedAvailable}
+                  disabled={!sharedAvailable}
+                  onChange={(e) => setLimitMembers(e.target.checked)}
+                />
+                <label htmlFor="limit-members">メンバーを限定して登録する</label>
+              </div>
+            </Field>
+
+            {/* Field は <label> なので、複数のチェックを入れると余白のクリックで先頭が切り替わる。div で組む */}
+            {splitting ? (
+              <div className="field field--wide" role="group" aria-labelledby="split-members-label">
+                <span id="split-members-label">
+                  割り勘の対象メンバー<span className="field__req">*</span>
+                </span>
+                <div className="radio-row">
+                  {members.map((m) => {
+                    const checked = splitIds.includes(m.id)
+                    const share = shareOf(m.id)
+                    return (
+                      <label key={m.id} className="radio-chip">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => toggleSplitMember(m.id, e.target.checked)}
+                        />
+                        {m.name}
+                        {checked && share !== undefined ? (
+                          <span className="chip-amount">
+                            {formatYen(share)}
+                            {m.id === paidBy ? '（立替者）' : ''}
+                          </span>
+                        ) : null}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
             ) : null}
           </>
         ) : null}
@@ -271,7 +383,7 @@ export function ExpenseForm({
         </Field>
       </div>
 
-      <FormFooter busy={busy} error={error} onCancel={onDone} submitLabel={initial ? '更新' : '登録'} />
+      <FormFooter busy={busy} error={error} onCancel={onDone} submitLabel={initial ? '更新' : splitting ? '割り勘で登録' : '登録'} />
     </form>
   )
 }

@@ -6,6 +6,7 @@ import { MonthlyBars } from '../charts/MonthlyBars'
 import { IncomeForm } from '../forms/IncomeForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
 import { CloseSprintForm } from '../forms/CloseSprintForm'
+import { SharedExpenseCard } from '../components/SharedExpenseCard'
 import {
   byCategory,
   expenseFacts,
@@ -268,6 +269,8 @@ export function BudgetPage() {
         <MonthlyTable monthly={scoped.monthly} />
 
         <SettlementCard summary={scoped.summary} expenses={scoped.expenses} />
+
+        <SharedExpenseCard />
 
         <CategoryBreakdown expenses={scoped.expenses} sprintWindow={scoped.window} />
 
