@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
 import { Badge, Banner, Card, Empty, Modal, Tile } from '../components/ui'
-import { IconBalance, IconCoins, IconWallet } from '../components/icons'
+import { IconCoins, IconWallet } from '../components/icons'
 import { MonthlyBars } from '../charts/MonthlyBars'
 import { IncomeForm } from '../forms/IncomeForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
@@ -192,41 +192,21 @@ export function BudgetPage() {
           {selected.sprint.note ? <p className="sprint-bar__note">{selected.sprint.note}</p> : null}
         </section>
 
-        {/*
-          スプリントの要点は3つだけ: 開始時の残高、このスプリントで使った額、その差額。
-          差額 = 開始時の残高 + 収入 − 使った額（＝いまの口座残高）。収入があれば注記で言う。
-        */}
+        {/* スプリントの要点は2つだけ: このスプリントで使った額と、いまの口座残高 */}
         <div className="grid grid--tiles">
           <Tile
             tone="primary"
-            icon={<IconCoins />}
-            value={formatYen(selected.openingBalance)}
-            label="開始時の残高"
-            note={`${formatDate(selected.sprint.started_on)} 時点のチーム残高`}
-          />
-          <Tile
-            tone="secondary"
             icon={<IconWallet />}
             value={formatYen(selected.cashOut)}
             label="使った額"
             note="このスプリントで口座から出た額"
           />
           <Tile
-            tone="plain"
-            icon={<IconBalance />}
-            value={
-              <span className={selected.closingBalance < 0 ? 'value-bad' : undefined}>
-                {formatYen(selected.closingBalance)}
-              </span>
-            }
-            label="差額"
-            note={
-              selected.income > 0
-                ? `収入 ${formatYen(selected.income)} を含む${selected.isOpen ? '・現在の残高' : '・期末残高'}`
-                : selected.isOpen
-                  ? '現在の残高'
-                  : '期末残高'
-            }
+            tone="secondary"
+            icon={<IconCoins />}
+            value={formatYen(selected.closingBalance)}
+            label={selected.isOpen ? '口座残高' : '期末の口座残高'}
+            note={selected.income > 0 ? `このスプリントの収入 ${formatYen(selected.income)} を含む` : 'チーム口座にあるお金'}
           />
         </div>
 
