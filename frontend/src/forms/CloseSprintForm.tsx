@@ -1,56 +1,147 @@
 import { useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
-import { Banner, Field } from '../components/ui'
-import { formatDate, formatYen, formatYenSigned, today } from '../lib/format'
-import type { SprintTotals } from '../lib/finance'
+import { Badge, Banner, Field } from '../components/ui'
+import { formatDate, formatYen, today } from '../lib/format'
+import { closingSettlement, type SprintTotals } from '../lib/finance'
 import { FormFooter, nullable, useSubmit } from './formBits'
 
 /**
- * スプリントを終了し、続けて次のスプリントを開始する。
- * 未精算の立替が残っていても止めない（終わらせるかはチームの判断）が、
- * 残高の意味が変わるので必ず警告を出す。
+ * 精算して締める。確認画面で「誰がいくら受け取り／払うか」を見せ、
+ * 確定すると立替と割り勘をすべて精算済みにして、次のスプリントを始める。
+ * 計算の考え方は lib/finance.ts の closingSettlement を参照。
  */
 export function CloseSprintForm({ totals, onDone }: { totals: SprintTotals; onDone: () => void }) {
-  const { closeSprint } = useTeamData()
+  const { summary, sharedExpenses, shares, settleAndClose } = useTeamData()
+  const settlement = closingSettlement(summary, sharedExpenses, shares)
+
   const [name, setName] = useState(totals.sprint.name ?? '')
   const [endedOn, setEndedOn] = useState(today())
   const [note, setNote] = useState(totals.sprint.note ?? '')
 
   const { busy, error, handle } = useSubmit(
-    () => closeSprint({ name: nullable(name), ended_on: endedOn, note: nullable(note) }),
+    () =>
+      settleAndClose({
+        name: nullable(name),
+        ended_on: endedOn,
+        note: nullable(note),
+        settlement,
+      }),
     onDone,
   )
 
+  const nothingToSettle =
+    settlement.unsettledTotal === 0 && settlement.shortfall === 0 && settlement.sharedTotal === 0
+  const showShared = settlement.sharedTotal > 0
+  const perHead = settlement.rows.length > 0 ? Math.ceil(settlement.shortfall / settlement.rows.length) : 0
+
   return (
     <form onSubmit={handle}>
-      {totals.unsettled > 0 ? (
-        <div style={{ marginBottom: 16 }}>
-          <Banner tone="warning">
-            <strong>未精算の立替が {formatYen(totals.unsettled)} 残っています。</strong>
-            <br />
-            このまま終了すると、精算はまだ済んでいないのにスプリントが締まります。返金してから終了するのが
-            おすすめですが、そのまま終了しても記録は失われません（未精算のままとして残ります）。
-          </Banner>
+      {/* 口座残高 − 未精算の立替 = 実質残高。この1本の式がすべての出発点 */}
+      <dl className="close-equation">
+        <div>
+          <dt>口座残高</dt>
+          <dd>{formatYen(settlement.accountBalance)}</dd>
         </div>
-      ) : (
-        <div style={{ marginBottom: 16 }}>
-          <Banner tone="info">
-            未精算の立替はありません。このスプリントの精算はすべて完了しています。
-          </Banner>
+        <div>
+          <dt>未精算の立替</dt>
+          <dd>
+            <span className="close-equation__op" aria-hidden="true">
+              −
+            </span>
+            {formatYen(settlement.unsettledTotal)}
+          </dd>
         </div>
-      )}
-
-      <dl className="close-summary">
-        <Row label="期首残高" value={formatYen(totals.openingBalance)} />
-        <Row label="収入" value={formatYen(totals.income)} />
-        <Row label="支出（口座から出た額）" value={formatYen(totals.cashOut)} />
-        <Row
-          label="収支"
-          value={formatYenSigned(totals.net)}
-          tone={totals.net < 0 ? 'bad' : totals.net > 0 ? 'good' : undefined}
-        />
-        <Row label="期末残高" value={formatYen(totals.closingBalance)} strong />
+        <div className="is-result">
+          <dt>実質残高</dt>
+          <dd className={settlement.netBalance < 0 ? 'value-bad' : undefined}>
+            <span className="close-equation__op" aria-hidden="true">
+              =
+            </span>
+            {formatYen(settlement.netBalance)}
+          </dd>
+        </div>
       </dl>
+
+      <div style={{ margin: '16px 0' }}>
+        {nothingToSettle ? (
+          <Banner tone="info">精算するものはありません。そのままスプリントを終了できます。</Banner>
+        ) : settlement.shortfall > 0 ? (
+          <Banner tone="warning">
+            <strong>実質残高が {formatYen(settlement.shortfall)} 足りません。</strong>
+            不足ぶんを全員で均等に集めます（1人 {formatYen(perHead)} 前後）。集めた額は収入（その他・精算の追加徴収）として記録されます。
+          </Banner>
+        ) : (
+          <Banner tone="info">
+            不足はありません。立替を全額返しても、口座に <strong>{formatYen(settlement.balanceAfter)}</strong> 残ります。
+          </Banner>
+        )}
+      </div>
+
+      {nothingToSettle ? null : (
+        <>
+          <div className="table-scroll close-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>メンバー</th>
+                  <th className="num">立替の返金</th>
+                  <th className="num">追加徴収</th>
+                  {showShared ? <th className="num">割り勘</th> : null}
+                  <th className="num">やり取り</th>
+                </tr>
+              </thead>
+              <tbody>
+                {settlement.rows.map((r) => (
+                  <tr key={r.member.id}>
+                    <td className="nowrap">{r.member.name}</td>
+                    <td className="num">{r.advance > 0 ? `+${formatYen(r.advance)}` : '—'}</td>
+                    <td className="num">{r.collect > 0 ? `−${formatYen(r.collect)}` : '—'}</td>
+                    {showShared ? (
+                      <td className="num">
+                        {r.sharedNet === 0 ? '—' : `${r.sharedNet > 0 ? '+' : '−'}${formatYen(Math.abs(r.sharedNet))}`}
+                      </td>
+                    ) : null}
+                    <td className="num">
+                      {r.transfer === 0 ? (
+                        <span style={{ color: 'var(--ink-muted)' }}>なし</span>
+                      ) : r.transfer > 0 ? (
+                        <span className="settle-amount settle-amount--out">{formatYen(r.transfer)} 受け取る</span>
+                      ) : (
+                        <span className="settle-amount settle-amount--in">{formatYen(-r.transfer)} 払う</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={showShared ? 4 : 3}>チーム口座から出る合計</td>
+                  <td className="num">{formatYen(settlement.payOutTotal)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={showShared ? 4 : 3}>チーム口座に入る合計</td>
+                  <td className="num">{formatYen(settlement.collectTotal)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={showShared ? 4 : 3}>精算後の口座残高</td>
+                  <td className="num">{formatYen(settlement.balanceAfter)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <p className="close-note">
+            「やり取り」は1人につき1回の振込です。
+            {showShared ? (
+              <>
+                <Badge tone="neutral">割り勘</Badge>
+                の貸し借りも含めて、全員がチーム口座とだけやり取りすれば精算が終わります。
+              </>
+            ) : null}
+            確定すると、立替{showShared ? 'と割り勘' : ''}はすべて精算済みになります。実際の振込は確定の前後どちらでも構いません。
+          </p>
+        </>
+      )}
 
       <div className="form-grid" style={{ marginTop: 18 }}>
         <Field
@@ -69,7 +160,7 @@ export function CloseSprintForm({ totals, onDone }: { totals: SprintTotals; onDo
         <Field
           label="終了日"
           required
-          hint={`開始日は ${formatDate(totals.sprint.started_on)}。次のスプリントはこの日から始まります`}
+          hint={`開始日は ${formatDate(totals.sprint.started_on)}。精算日と次のスプリントの開始日になります`}
         >
           <input type="date" value={endedOn} onChange={(e) => setEndedOn(e.target.value)} required />
         </Field>
@@ -87,34 +178,8 @@ export function CloseSprintForm({ totals, onDone }: { totals: SprintTotals; onDo
         busy={busy}
         error={error}
         onCancel={onDone}
-        submitLabel="終了して次のスプリントを開始"
+        submitLabel={nothingToSettle ? '終了して次のスプリントを開始' : '精算して次のスプリントを開始'}
       />
     </form>
-  )
-}
-
-function Row({
-  label,
-  value,
-  tone,
-  strong,
-}: {
-  label: string
-  value: string
-  tone?: 'good' | 'bad'
-  strong?: boolean
-}) {
-  return (
-    <>
-      <dt>{label}</dt>
-      <dd
-        className={
-          (strong ? 'is-strong ' : '') +
-          (tone === 'good' ? 'value-good' : tone === 'bad' ? 'value-bad' : '')
-        }
-      >
-        {value}
-      </dd>
-    </>
   )
 }

@@ -12,7 +12,6 @@ import {
   expenseFacts,
   inWindow,
   monthlySeries,
-  settlementPlan,
   summarize,
   type DateWindow,
   type SprintTotals,
@@ -133,8 +132,8 @@ export function BudgetPage() {
         <div>
           <h1>予算管理</h1>
           <p>
-            予算はスプリント単位で区切ります。精算を終えてチーム残高が確定したら、
-            スプリントを終了すると次のスプリントが自動で始まります。
+            お金の動きはスプリント単位で区切ります。「精算して締める」で立替を全額返し、
+            足りないぶんは全員で均等に集めて、次のスプリントを始めます。
           </p>
         </div>
         <div className="toolbar">
@@ -150,8 +149,9 @@ export function BudgetPage() {
       <div className="stack">
         {summary.projectedBalance < 0 ? (
           <Banner tone="critical">
-            <strong>未精算の立替を全額返すと、チーム残高がマイナスになります。</strong>{' '}
-            不足額は {formatYen(-summary.projectedBalance)} です（全スプリント通算）。
+            <strong>実質残高がマイナスです。</strong> 口座残高 {formatYen(summary.teamBalance)} に対して、
+            返す予定の立替が {formatYen(summary.unsettledTotal)} あります（不足 {formatYen(-summary.projectedBalance)}）。
+            精算するときに、不足ぶんを全員で均等に集めます。
           </Banner>
         ) : null}
 
@@ -188,7 +188,7 @@ export function BudgetPage() {
               </button>
               {selected.isOpen ? (
                 <button className="btn btn--sm btn--primary" onClick={() => setDialog('close')}>
-                  スプリントを終了
+                  精算して締める
                 </button>
               ) : null}
             </div>
@@ -224,7 +224,7 @@ export function BudgetPage() {
               </dd>
             </div>
             <div>
-              <dt>{selected.isOpen ? '現在の残高' : '期末残高'}</dt>
+              <dt>{selected.isOpen ? '口座残高' : '期末残高'}</dt>
               <dd>
                 <span className="sprint-figures__op" aria-hidden="true">
                   =
@@ -243,21 +243,25 @@ export function BudgetPage() {
               <dt>未精算の立替</dt>
               <dd className={selected.unsettled > 0 ? 'value-bad' : ''}>
                 {formatYen(selected.unsettled)}
-                <span className="sub">返す予定。残高には含みません</span>
+                <span className="sub">返す予定。口座残高には含みません</span>
               </dd>
             </div>
+            {selected.isOpen ? (
+              <div>
+                <dt>実質残高</dt>
+                <dd className={selected.closingBalance - selected.unsettled < 0 ? 'value-bad' : ''}>
+                  {formatYen(selected.closingBalance - selected.unsettled)}
+                  <span className="sub">口座残高 − 未精算の立替</span>
+                </dd>
+              </div>
+            ) : null}
           </dl>
           {selected.sprint.note ? (
             <p style={{ marginBottom: 0, marginTop: 14, fontSize: 13, color: 'var(--ink-2)' }}>
               {selected.sprint.note}
             </p>
           ) : null}
-          {selected.isOpen ? <CloseGate totals={selected} /> : null}
         </Card>
-
-        {selected.isOpen ? (
-          <SettlementPlanCard summary={scoped.summary} closingBalance={selected.closingBalance} />
-        ) : null}
 
         <Card
           title="月ごとの収支"
@@ -273,6 +277,8 @@ export function BudgetPage() {
         <SharedExpenseCard />
 
         <CategoryBreakdown expenses={scoped.expenses} sprintWindow={scoped.window} />
+
+        <RaceCostCard />
 
         <ExpenseTable
           expenses={scoped.expenses}
@@ -298,7 +304,7 @@ export function BudgetPage() {
       ) : null}
 
       {dialog === 'close' && selected.isOpen ? (
-        <Modal title="スプリントを終了" onClose={() => setDialog(null)}>
+        <Modal title="精算して締める" onClose={() => setDialog(null)} wide>
           <CloseSprintForm
             totals={selected}
             onDone={() => {
@@ -310,167 +316,6 @@ export function BudgetPage() {
         </Modal>
       ) : null}
     </>
-  )
-}
-
-/**
- * このスプリントを終われる状態かを1か所で言う。
- * 終了条件は「チーム残高がプラス」かつ「未精算の立替がゼロ」。
- * レールは立替の精算がどこまで進んだか（精算済 ÷ 立替の総額）。
- * 新しい計算はしない。すべて集計済みの値から出す。
- */
-function CloseGate({ totals }: { totals: SprintTotals }) {
-  const advanced = totals.reimbursedTotal + totals.unsettled
-  const settled = advanced === 0 ? 1 : totals.reimbursedTotal / advanced
-  const pct = Math.round(settled * 100)
-  const balanceOk = totals.closingBalance >= 0
-  const settledOk = totals.unsettled === 0
-
-  return (
-    <div className="gate">
-      <span className="gate__label">終了条件</span>
-      <div className="gate__track">
-        <span className="gate__rail">
-          <span
-            className={`gate__fill${settledOk ? ' is-done' : ''}`}
-            style={{ width: `${pct}%` }}
-          />
-        </span>
-        <span className="gate__pct">
-          {advanced === 0 ? '立替なし' : `立替の精算 ${pct}%`}
-        </span>
-      </div>
-      <ul className="gate__conds">
-        <li className={balanceOk ? 'is-met' : undefined}>残高がプラス</li>
-        <li className={settledOk ? 'is-met' : undefined}>
-          {settledOk ? '未精算ゼロ' : `未精算 ${formatYen(totals.unsettled)}`}
-        </li>
-      </ul>
-    </div>
-  )
-}
-
-/**
- * スプリントを終わらせるための精算プラン。
- * 「チーム残高がプラス」かつ「全員の負担が均一」に到達するために、
- * 誰にいくら返金し、誰からいくら集めればよいかを1人1行で出す。
- */
-function SettlementPlanCard({
-  summary,
-  closingBalance,
-}: {
-  summary: Summary
-  closingBalance: number
-}) {
-  // 既定は「使い切って0円にする」。残したい額があれば書き換える
-  const [target, setTarget] = useState('0')
-  const targetBalance = Math.round(Number(target) || 0)
-  const plan = settlementPlan(summary, closingBalance, targetBalance)
-
-  if (plan.members.length === 0) return null
-
-  const spread =
-    Math.max(...plan.members.map((m) => m.finalBurden)) -
-    Math.min(...plan.members.map((m) => m.finalBurden))
-
-  return (
-    <Card
-      title="精算プラン"
-      subtitle="スプリントを終了するための入金・返金。全員の負担が同じ額に揃います"
-      actions={
-        <div className="toolbar">
-          <label className="settle-target">
-            <span>終了時に残すチーム残高</span>
-            <input
-              type="number"
-              min={0}
-              step={1000}
-              inputMode="numeric"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            />
-          </label>
-        </div>
-      }
-      flush
-    >
-      <div style={{ padding: '14px 18px 0' }}>
-        {!plan.targetIsPositive ? (
-          <Banner tone="critical">
-            <strong>残すチーム残高がマイナスです。</strong>{' '}
-            終了条件（残高がプラス）を満たしません。0以上の額を入れてください。
-          </Banner>
-        ) : (
-          <Banner tone="info">
-            この通りにやり取りすると、<strong>全員の負担が {formatYen(plan.burdenPerMember)} に揃い</strong>
-            、チーム残高は <strong>{formatYen(plan.targetBalance)}</strong> になります。
-            立替はすべて精算済みになります。
-            {spread > 0 ? '（端数の関係で1円だけ差が出る人がいます）' : ''}
-          </Banner>
-        )}
-      </div>
-
-      <div className="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>メンバー</th>
-              <th className="num">納入済会費</th>
-              <th className="num">立替済</th>
-              <th className="num">やり取り</th>
-              <th className="num">精算後の負担</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plan.members.map((m) => (
-              <tr key={m.member.id}>
-                <td className="nowrap">{m.member.name}</td>
-                <td className="num">{formatYen(m.feesPaid)}</td>
-                <td className="num">{m.unsettled > 0 ? formatYen(m.unsettled) : '—'}</td>
-                <td className="num">
-                  {m.transfer === 0 ? (
-                    <span style={{ color: 'var(--ink-muted)' }}>やり取りなし</span>
-                  ) : m.transfer > 0 ? (
-                    <span className="settle-amount settle-amount--out">
-                      {formatYen(m.transfer)} を返金
-                    </span>
-                  ) : (
-                    <span className="settle-amount settle-amount--in">
-                      {formatYen(-m.transfer)} を集金
-                    </span>
-                  )}
-                </td>
-                <td className="num">{formatYen(m.finalBurden)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={3}>チームから返金する合計</td>
-              <td className="num">{formatYen(plan.payOutTotal)}</td>
-              <td className="num" />
-            </tr>
-            <tr>
-              <td colSpan={3}>チームが集金する合計</td>
-              <td className="num">{formatYen(plan.collectTotal)}</td>
-              <td className="num" />
-            </tr>
-            <tr>
-              <td colSpan={3}>精算後のチーム残高</td>
-              <td className={`num ${plan.targetBalance < 0 ? 'value-bad' : ''}`}>
-                {formatYen(closingBalance - plan.payOutTotal + plan.collectTotal)}
-              </td>
-              <td className="num" />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      <div style={{ padding: '14px 18px', fontSize: 12.5, color: 'var(--ink-muted)' }}>
-        「やり取り」は立替の返金と会費の調整を相殺した金額です。1人につき1回の振込で済みます。
-        実際に振り込んだら、支出一覧で立替を「精算する」にし、会費の追加・返金を収入／支出として登録してください。
-      </div>
-    </Card>
   )
 }
 
@@ -669,6 +514,76 @@ function SettlementCard({ summary, expenses }: { summary: Summary; expenses: Exp
               <td colSpan={4} />
             </tr>
           </tfoot>
+        </table>
+      </div>
+    </Card>
+  )
+}
+
+/**
+ * レースごとの費用（参加費・整備・遠征費など、レースに紐づけた支出の通算）。
+ * 予算は立てない方針なので、「実際にいくらかかったか」を見える化する。
+ */
+function RaceCostCard() {
+  const { races, expenses } = useTeamData()
+
+  const rows = useMemo(() => {
+    const asOf = today()
+    return races
+      .map((race) => {
+        const byCategory = new Map<string, number>()
+        let count = 0
+        for (const e of expenses) {
+          if (e.race_id !== race.id) continue
+          const accrued = expenseFacts(e, asOf).accrued
+          if (accrued <= 0) continue
+          byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + accrued)
+          count += 1
+        }
+        const total = [...byCategory.values()].reduce((t, v) => t + v, 0)
+        const parts = [...byCategory.entries()].sort((a, b) => b[1] - a[1])
+        return { race, total, count, parts }
+      })
+      .filter((r) => r.total > 0)
+      .sort((a, b) => b.race.starts_on.localeCompare(a.race.starts_on))
+  }, [races, expenses])
+
+  if (rows.length === 0) return null
+
+  return (
+    <Card title="レースごとの費用" subtitle="レースに紐づけた支出の通算（全スプリント）" flush>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th className="col-title">レース</th>
+              <th>開催日</th>
+              <th>内訳</th>
+              <th className="num">費用の合計</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ race, total, count, parts }) => (
+              <tr key={race.id}>
+                <td>
+                  {race.name}
+                  <span className="sub">{count}件の支出</span>
+                </td>
+                <td className="nowrap">{formatDate(race.starts_on)}</td>
+                <td>
+                  <span className="cost-parts">
+                    {parts.map(([cat, amount]) => (
+                      <span key={cat}>
+                        {EXPENSE_CATEGORIES[cat as keyof typeof EXPENSE_CATEGORIES] ?? cat}
+                        <b className="num">{formatYen(amount)}</b>
+                      </span>
+                    ))}
+                  </span>
+                </td>
+                <td className="num">{formatYen(total)}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </Card>

@@ -7,7 +7,7 @@
    ・カードは枠線なし・やわらかい影・角丸12px。
    ・表の数値と日付だけ JetBrains Mono。桁がそろい、台帳として読める。
    ・UI は Inter（Latin のみ自前ホスト）。日本語は端末のゴシックに任せる。
-   ・スプリントの「終了条件」ゲート（.gate）は機能そのままに、同じトークンで描く。
+   ・精算して締めるダイアログは「口座残高 − 未精算の立替 = 実質残高」の式から始める。
    =========================================================================== */
 
 /* Latin サブセットのみ自前ホスト。可変フォントなので1ファイルで 400〜600 */
@@ -136,9 +136,7 @@ a {
 .num,
 .mono,
 .sprint-head__period,
-.gate__pct,
 .settle-amount,
-.close-summary dd,
 .chart__tooltip-row b {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -609,132 +607,75 @@ a {
   padding-left: 16px;
 }
 
-/*
- * ── 終了条件ゲート ────────────────────────────────────────────────
- *  このスプリントを終われる状態かを1か所で言う。
- *  レールは立替の精算がどこまで進んだか、チップは2つの終了条件。
- *  この画面で色と太さを使うのはここだけにする。
- */
-.gate {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.gate__label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-
-.gate__track {
-  /* レールは間延びさせない。空の状態でも横に伸びきらない幅にする */
-  flex: 0 1 240px;
-  min-width: 140px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.gate__rail {
-  flex: 1;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--surface-active);
-  overflow: hidden;
-}
-
-.gate__fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-.gate__fill.is-done {
-  background: var(--good);
-}
-
-.gate__pct {
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.gate__conds {
-  margin-left: auto;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gate__conds li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 9px 2px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  font-size: 11.5px;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-/* 未達は輪、達成は塗り。色だけでなく形でも差をつける */
-.gate__conds li::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1.5px solid var(--ink-muted);
-}
-
-.gate__conds li.is-met {
-  border-color: var(--good-line);
-  background: var(--good-wash);
-  color: var(--good);
-}
-
-.gate__conds li.is-met::before {
-  border-color: var(--good);
-  background: var(--good);
-}
-
-/* 終了ダイアログ内の収支サマリ */
-.close-summary {
+/* 精算して締める：口座残高 − 未精算の立替 = 実質残高 */
+.close-equation {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 7px 16px;
-  padding: 13px 15px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-}
-
-.close-summary dt {
-  color: var(--ink-2);
-}
-
-.close-summary dd {
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 14px 20px;
   margin: 0;
-  text-align: right;
+  padding: 16px 20px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+}
+
+.close-equation dt {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.close-equation dd {
+  margin: 3px 0 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.close-equation .is-result dd {
+  color: var(--accent);
+}
+
+.close-equation .is-result dd.value-bad {
+  color: var(--critical);
+}
+
+.close-equation__op {
+  display: inline-block;
+  width: 0.8em;
+  margin-right: 2px;
+  color: var(--ink-muted);
   font-weight: 500;
 }
 
-.close-summary dd.is-strong {
-  font-weight: 600;
-  font-size: 15px;
+.close-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.close-table table {
+  min-width: 520px;
+}
+
+.close-note {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* レースごとの費用の内訳 */
+.cost-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  color: var(--ink-2);
+}
+
+.cost-parts b {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--ink);
 }
 
 /* 費目別ランキング（単一系列なので色は1つ） */
@@ -1563,21 +1504,7 @@ tfoot .num {
   min-width: 5.5em;
 }
 
-/* ── 精算プラン ─────────────────────────────────────────────────────── */
-
-.settle-target {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11.5px;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.settle-target input {
-  width: 120px;
-  text-align: right;
-}
+/* ── 精算して締める（受取／支払の表示）─────────────────────────────────────────────────────── */
 
 /* 「いくら動かすか」が一目で分かるよう、この列だけ強調する */
 .settle-amount {

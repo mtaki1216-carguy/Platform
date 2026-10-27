@@ -19,7 +19,7 @@ const OPEN_STATUSES: RaceStatus[] = ['considering', 'planned']
 
 export function Dashboard() {
   const { summary, monthly, races, maintenance, expenses, memberName } = useTeamData()
-  const { selfName } = useSelfMember()
+  const { selfName, selfId } = useSelfMember()
 
   const now = today()
   const upcoming = races
@@ -33,6 +33,7 @@ export function Dashboard() {
     .sort((a, b) => a.entry_deadline!.localeCompare(b.entry_deadline!))
 
   const recentMaintenance = maintenance.slice(0, 5)
+  const owed = summary.byMember.filter((m) => m.unsettled > 0)
 
   return (
     <>
@@ -49,8 +50,8 @@ export function Dashboard() {
       <div className="stack">
         {summary.projectedBalance < 0 ? (
           <Banner tone="critical">
-            <strong>立替を全額精算すると残高が不足します。</strong> 不足額{' '}
-            {formatYen(-summary.projectedBalance)}。<Link to="/budget">予算管理</Link>で内訳を確認してください。
+            <strong>実質残高がマイナスです。</strong> 立替を全額返すと {formatYen(-summary.projectedBalance)}{' '}
+            足りません。<Link to="/budget">予算管理</Link>で精算すると、不足ぶんを全員で均等に集められます。
           </Banner>
         ) : null}
 
@@ -64,35 +65,73 @@ export function Dashboard() {
           </Banner>
         ) : null}
 
+        {/* 口座残高 − 未精算の立替 = 実質残高。主役は実質残高（返す予定のお金を引いた、使える額） */}
         <div className="grid grid--tiles">
           <Tile
             tone="primary"
-            icon={<IconCoins />}
-            value={formatYen(summary.teamBalance)}
-            label="チーム残高"
-            note="現在の口座残高"
+            icon={<IconBalance />}
+            value={formatYen(summary.projectedBalance)}
+            label="実質残高"
+            note="口座残高 − 未精算の立替"
           />
           <Tile
             tone="secondary"
-            icon={<IconHandCoins />}
-            value={formatYen(summary.unsettledTotal)}
-            label="未精算の立替"
-            note="メンバーへ返すべき合計"
+            icon={<IconCoins />}
+            value={formatYen(summary.teamBalance)}
+            label="口座残高"
+            note="チーム口座にいまあるお金"
           />
           <Tile
             tone="plain"
-            icon={<IconBalance />}
-            value={
-              <span className={summary.projectedBalance < 0 ? 'value-bad' : undefined}>
-                {formatYen(summary.projectedBalance)}
-              </span>
-            }
-            label="精算後見込み残高"
-            note="立替を全額返した後に残る額"
+            icon={<IconHandCoins />}
+            value={formatYen(summary.unsettledTotal)}
+            label="未精算の立替"
+            note="立て替えた人に返す予定"
           />
         </div>
 
-        <Card title="チーム残高の推移" subtitle="各月末時点の口座残高">
+        {owed.length > 0 ? (
+          <Card
+            title="返す予定の立替"
+            subtitle="立て替えた人ごとの、まだ返していない額"
+            flush
+            actions={
+              <Link className="btn btn--sm btn--primary" to="/budget">
+                精算する
+              </Link>
+            }
+          >
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>メンバー</th>
+                    <th className="num">件数</th>
+                    <th className="num">返す額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {owed.map((row) => (
+                    <tr key={row.member.id}>
+                      <td className="nowrap">
+                        {row.member.name}
+                        {row.member.id === selfId ? (
+                          <span className="sub">
+                            <Badge tone="info">自分</Badge>
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="num">{row.unsettledCount}</td>
+                      <td className="num">{formatYen(row.unsettled)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : null}
+
+        <Card title="口座残高の推移" subtitle="各月末時点の口座残高">
           <BalanceChart data={monthly} />
         </Card>
 

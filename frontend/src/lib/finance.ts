@@ -12,7 +12,7 @@ import type { Expense, Income, Member, SharedExpense, SharedShare, Sprint, UUID 
  *
  *  だから未精算の立替は「チーム残高」には出てこない。代わりに
  *  「誰にいくら返すべきか（未精算立替）」として別に持ち、
- *  全部返した後の残高を「精算後見込み残高」として出す。
+ *  口座残高から未精算の立替を引いたものを「実質残高」として出す。
  *
  *  この関数群がアプリ内で唯一の計算元。画面側で足し算し直さないこと。
  * ────────────────────────────────────────────────────────────────────────
@@ -160,9 +160,9 @@ export interface Summary {
   reimbursedTotal: number
   /** 未精算の立替の合計 */
   unsettledTotal: number
-  /** チーム残高（現在の口座残高） */
+  /** 口座残高（チーム口座にいま実際にあるお金） */
   teamBalance: number
-  /** 未精算をすべて精算した後に残る額 */
+  /** 実質残高 = 口座残高 − 未精算の立替（返す予定のお金を引いた、使える額） */
   projectedBalance: number
   /** メンバー別の内訳（表示順） */
   byMember: MemberBalance[]
@@ -432,137 +432,111 @@ export function unassignedCount(incomes: Income[], expenses: Expense[]): number 
 }
 
 /**
- * ── スプリントを終わらせるための精算プラン ──────────────────────────
+ * ── 精算して締める（スプリント終了）─────────────────────────────────
  *
- *  終了条件を「チーム残高がプラス」かつ「全員の負担が均一」と定義して、
- *  そこに到達するために誰がいくら払う／受け取るかを逆算する。
+ *  用語は3つだけ。1本の式でつながっている。
+ *    口座残高     … チーム口座にいま実際にあるお金
+ *    未精算の立替 … メンバーが先に払っていて、まだ返していない合計
+ *    実質残高     … 口座残高 − 未精算の立替（返す予定のお金を引いた、使える額）
  *
- *  ある人の負担 = 納めた会費 + まだ返してもらっていない立替
- *  立替を全額返せば負担から消えるので、精算後に人ごとの差を作るのは
- *  会費だけになる。つまり「会費の追加徴収・返金」で負担を揃えられる。
+ *  精算のルール（会費は全員同額が前提）:
+ *    1. 未精算の立替は、立て替えた本人に全額返す。
+ *    2. 実質残高がマイナスなら、不足額を全員で均等に集める（追加の会費）。
+ *    3. 割り勘の貸し借りも、同じ画面で一緒に精算する。
  *
- *    目標残高 T、現在の残高 C、未精算の合計 U、会費合計 F、人数 n として
- *      精算後の残高 = C − U + Σaᵢ = T   →   Σaᵢ = T − C + U
- *      全員の負担を等しく B にする      →   aᵢ = B − 会費ᵢ
- *      2式から                          B = (T − C + U + F) ÷ n
+ *  実際の振込は、全員がチーム口座とだけやり取りする形にまとめる（1人1回）。
+ *    やり取り = 立替の返金 − 追加徴収 + 割り勘の受取 − 割り勘の支払
+ *  割り勘は全員分を足すと0になるので、口座の残高には影響しない。
  *
- *  aᵢ は「追加で払う会費（＋）／返金される会費（−）」。
- *  実際の振込は立替の返金と相殺して1人1回にまとめる（transfer）。
- * ────────────────────────────────────────────────────────────────────────
+ *  負担を揃える計算（会費の追加徴収・返金の調整）はしない。会費が全員同額なら
+ *  立替額が人ごとに違っても、全額返せば不公平は生まれないため。
+ * ────────────────────────────────────────────────────────────────────
  */
-export interface MemberSettlement {
+export interface ClosingRow {
   member: Member
-  /** このスプリントで納めた会費 */
-  feesPaid: number
-  /** 返してもらう立替（未精算分） */
-  unsettled: number
-  /** 精算前の負担 = feesPaid + unsettled */
-  currentBurden: number
-  /** 会費の調整。+ = 追加で払う / − = 返金される */
-  adjustment: number
-  /** 立替の返金と相殺した実際のやり取り。+ = チームから受け取る / − = チームに払う */
+  /** チームが返す立替（未精算分） */
+  advance: number
+  /** 不足を埋めるための追加徴収（均等割り） */
+  collect: number
+  /** 割り勘の差し引き。+ = 受け取る側 / − = 返す側 */
+  sharedNet: number
+  /** 実際のやり取り。+ = チーム口座から受け取る / − = チーム口座に払う */
   transfer: number
-  /** 精算後の負担（全員ほぼ同額になる） */
-  finalBurden: number
 }
 
-export interface SettlementPlan {
-  /** 終了時に残したいチーム残高 */
-  targetBalance: number
-  /** いまの残高（このスプリント時点） */
-  closingBalance: number
+export interface ClosingSettlement {
+  /** 口座残高（精算前） */
+  accountBalance: number
+  /** 未精算の立替の合計 */
   unsettledTotal: number
-  /** 会費調整の合計。+ = チーム口座に入る */
-  adjustmentTotal: number
-  /** チームから出ていく合計（立替返金 + 会費返金） */
+  /** 実質残高 = 口座残高 − 未精算の立替 */
+  netBalance: number
+  /** 不足額（実質残高がマイナスのときだけ。均等に集める額の合計） */
+  shortfall: number
+  rows: ClosingRow[]
+  /** チーム口座から出ていく合計 */
   payOutTotal: number
-  /** チームに入ってくる合計（追加徴収） */
+  /** チーム口座に入ってくる合計 */
   collectTotal: number
-  /** 精算後に1人が負担する額 */
-  burdenPerMember: number
-  members: MemberSettlement[]
-  /** 目標残高が0以上か（チーム残高がプラスという終了条件） */
-  targetIsPositive: boolean
-  /** 目標を満たすのに追加徴収が必要か */
-  needsCollection: boolean
+  /** 精算後の口座残高 */
+  balanceAfter: number
+  /** 割り勘で動く金額の合計（全員分を足すと口座は動かない） */
+  sharedTotal: number
 }
 
-export function settlementPlan(
+export function closingSettlement(
   summary: Summary,
-  closingBalance: number,
-  targetBalance: number,
-): SettlementPlan {
+  sharedExpenses: SharedExpense[],
+  shares: SharedShare[],
+): ClosingSettlement {
   const rows = summary.byMember
-  const n = rows.length
+  const accountBalance = summary.teamBalance
+  const unsettledTotal = summary.unsettledTotal
+  const netBalance = accountBalance - unsettledTotal
+  const shortfall = netBalance < 0 ? -netBalance : 0
 
-  if (n === 0) {
-    return {
-      targetBalance,
-      closingBalance,
-      unsettledTotal: summary.unsettledTotal,
-      adjustmentTotal: 0,
-      payOutTotal: 0,
-      collectTotal: 0,
-      burdenPerMember: 0,
-      members: [],
-      targetIsPositive: targetBalance >= 0,
-      needsCollection: false,
-    }
-  }
+  const collects = new Map(
+    splitEvenly(
+      shortfall,
+      rows.map((r) => r.member.id),
+      null,
+    ).map((r) => [r.memberId, r.amount]),
+  )
+  const shared = sharedNetByMember(sharedExpenses, shares)
 
-  // 会費調整の合計。これだけ口座の増減が要る
-  const need = targetBalance - closingBalance + summary.unsettledTotal
-  const feesTotal = rows.reduce((s, r) => s + r.feesPaid, 0)
-  const burdenExact = (need + feesTotal) / n
-
-  // 1円単位に丸めても合計が need とぴったり合うようにする（最大剰余法）。
-  // 端数を切り捨てただけだと数円ずれて、残高が目標に届かない。
-  const raw = rows.map((r) => burdenExact - r.feesPaid)
-  const floored = raw.map((v) => Math.floor(v))
-  let remainder = Math.round(need - floored.reduce((s, v) => s + v, 0))
-
-  const order = raw
-    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-    .sort((a, b) => b.frac - a.frac)
-  const adjustments = [...floored]
-  for (const { i } of order) {
-    if (remainder <= 0) break
-    adjustments[i] += 1
-    remainder -= 1
-  }
-
-  const settlements = rows.map<MemberSettlement>((r, i) => {
-    const adjustment = adjustments[i]
+  const result = rows.map<ClosingRow>((r) => {
+    const collect = collects.get(r.member.id) ?? 0
+    const sharedNet = shared.get(r.member.id) ?? 0
     return {
       member: r.member,
-      feesPaid: r.feesPaid,
-      unsettled: r.unsettled,
-      currentBurden: r.feesPaid + r.unsettled,
-      adjustment,
-      // 立替の返金（受取）と会費調整を相殺して、1人1回のやり取りにする
-      transfer: r.unsettled - adjustment,
-      finalBurden: r.feesPaid + adjustment,
+      advance: r.unsettled,
+      collect,
+      sharedNet,
+      transfer: r.unsettled - collect + sharedNet,
     }
   })
 
+  const payOutTotal = result.filter((m) => m.transfer > 0).reduce((t, m) => t + m.transfer, 0)
+  const collectTotal = result.filter((m) => m.transfer < 0).reduce((t, m) => t - m.transfer, 0)
+
   return {
-    targetBalance,
-    closingBalance,
-    unsettledTotal: summary.unsettledTotal,
-    adjustmentTotal: settlements.reduce((s, m) => s + m.adjustment, 0),
-    payOutTotal: settlements.filter((m) => m.transfer > 0).reduce((s, m) => s + m.transfer, 0),
-    collectTotal: settlements.filter((m) => m.transfer < 0).reduce((s, m) => s - m.transfer, 0),
-    burdenPerMember: Math.round(burdenExact),
-    members: settlements,
-    targetIsPositive: targetBalance >= 0,
-    needsCollection: settlements.some((m) => m.transfer < 0),
+    accountBalance,
+    unsettledTotal,
+    netBalance,
+    shortfall,
+    rows: result,
+    payOutTotal,
+    collectTotal,
+    balanceAfter: accountBalance - payOutTotal + collectTotal,
+    sharedTotal: sharedDebts(sharedExpenses, shares).reduce((t, d) => t + d.amount, 0),
   }
 }
 
 /**
  * ── 割り勘（メンバー間の貸し借り）──────────────────────────────────
- *  チーム口座を通らないので、残高・未精算の立替・精算プランには含めない。
+ *  チーム口座を通らないので、口座残高・未精算の立替・実質残高には含めない。
  *  ここでは「誰が誰にいくら返すべきか」だけを数える。
+ *  「精算して締める」のときだけ、振込を1人1回にまとめるために一緒に精算する。
  * ────────────────────────────────────────────────────────────────────
  */
 
@@ -622,6 +596,22 @@ export function sharedDebts(sharedExpenses: SharedExpense[], shares: SharedShare
   }
 
   return [...map.values()].sort((a, b) => b.amount - a.amount)
+}
+
+/**
+ * 割り勘の差し引きをメンバーごとに出す。+ = 受け取る側（立て替えた人）/ − = 返す側。
+ * 全員分を足すと必ず0になる。
+ */
+export function sharedNetByMember(
+  sharedExpenses: SharedExpense[],
+  shares: SharedShare[],
+): Map<UUID, number> {
+  const net = new Map<UUID, number>()
+  for (const d of sharedDebts(sharedExpenses, shares)) {
+    add(net, d.creditorId, d.amount)
+    add(net, d.debtorId, -d.amount)
+  }
+  return net
 }
 
 /** そのレースに紐づく支出の合計 */

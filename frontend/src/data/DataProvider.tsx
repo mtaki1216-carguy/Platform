@@ -11,6 +11,7 @@ import {
 import { describeError, supabase } from '../lib/supabase'
 import {
   monthlySeries,
+  type ClosingSettlement,
   openSprint,
   sprintTotals,
   summarize,
@@ -116,6 +117,23 @@ interface TeamData {
 
   memberName: (id: UUID | null) => string
   reload: () => Promise<void>
+
+  /**
+   * 精算して締める。次の4つをまとめて行う（途中で失敗したら、画面を更新して同じ操作をやり直せる）。
+   *   1. 未精算の立替をすべて精算済みにする
+   *   2. 割り勘の未返済をすべて返済済みにする
+   *   3. 実質残高が足りないぶんを、全員からの追加徴収（収入・その他）として記録する
+   *   4. スプリントを終了して次を始める
+   */
+  settleAndClose: (input: {
+    name: string | null
+    ended_on: string
+    note: string | null
+    settlement: ClosingSettlement
+  }) => Promise<void>
+
+  /** 複数行をまとめて追加する（会費を全員分登録するときなど） */
+  insertMany: (table: TableName, rows: Record<string, unknown>[]) => Promise<void>
 
   /** 追加した行を返す（整備記録に費用を紐付けるときに id が必要） */
   insert: <T = Record<string, unknown>>(table: TableName, row: Record<string, unknown>) => Promise<T>
@@ -238,6 +256,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (err) throw new Error(describeError(err))
       await reload()
       return data as T
+    },
+    [reload],
+  )
+
+  const insertMany = useCallback(
+    async (table: TableName, rows: Record<string, unknown>[]) => {
+      if (rows.length === 0) return
+      const { error: err } = await supabase.from(table).insert(rows)
+      if (err) throw new Error(describeError(err))
+      await reload()
     },
     [reload],
   )
@@ -381,6 +409,89 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [sprints, reload],
   )
 
+  const settleAndClose = useCallback(
+    async (input: {
+      name: string | null
+      ended_on: string
+      note: string | null
+      settlement: ClosingSettlement
+    }) => {
+      const open = openSprint(sprints)
+      if (!open) throw new Error('進行中のスプリントがありません')
+      if (input.ended_on < open.started_on) throw new Error('終了日は開始日以降にしてください')
+
+      const failed = async (err: unknown): Promise<never> => {
+        await reload()
+        const detail = err instanceof Error ? err.message : String(err)
+        throw new Error(
+          `精算の途中で失敗しました。一部は反映済みです。画面を更新して状態を確認し、もう一度実行してください。（${detail}）`,
+        )
+      }
+
+      try {
+        // 1. 未精算の立替。精算日は終了日。ただし立替の日付より前にはしない
+        const dateOf = (e: Expense) => (e.occurred_on > input.ended_on ? e.occurred_on : input.ended_on)
+        const byDate = new Map<string, string[]>()
+        for (const e of expenses) {
+          if (e.payer_type !== 'member' || e.reimbursed) continue
+          byDate.set(dateOf(e), [...(byDate.get(dateOf(e)) ?? []), e.id])
+        }
+        for (const [date, ids] of byDate) {
+          const { error: err } = await supabase
+            .from('expenses')
+            .update({ reimbursed: true, reimbursed_on: date })
+            .in('id', ids)
+          if (err) throw new Error(describeError(err))
+        }
+
+        // 2. 割り勘の未返済（立替者本人の分は最初から返済済み）
+        if (sharedAvailable) {
+          const payerOf = new Map(sharedExpenses.map((e) => [e.id, e.paid_by]))
+          const openShares = shares
+            .filter((x) => !x.settled && x.member_id !== payerOf.get(x.shared_expense_id))
+            .map((x) => x.id)
+          if (openShares.length > 0) {
+            const { error: err } = await supabase
+              .from('shared_expense_shares')
+              .update({ settled: true, settled_on: input.ended_on })
+              .in('id', openShares)
+            if (err) throw new Error(describeError(err))
+          }
+        }
+      } catch (err) {
+        return failed(err)
+      }
+
+      // 3. 不足ぶんの追加会費。直後の終了に失敗したら取り消す
+      let incomeIds: string[] = []
+      const collectRows = input.settlement.rows
+        .filter((r) => r.collect > 0)
+        .map((r) => ({
+          sprint_id: open.id,
+          occurred_on: input.ended_on,
+          // 会費ではなく「その他」。通常の会費（初期値・納入済みの判定）と混ざらないようにする
+          category: 'other',
+          member_id: r.member.id,
+          amount: r.collect,
+          note: '精算の追加徴収（実質残高の不足ぶん）',
+        }))
+      if (collectRows.length > 0) {
+        const { data, error: err } = await supabase.from('incomes').insert(collectRows).select('id')
+        if (err) return failed(new Error(describeError(err)))
+        incomeIds = (data ?? []).map((r: { id: string }) => r.id)
+      }
+
+      // 4. スプリントの終了（失敗時の巻き戻しは closeSprint が行う）
+      try {
+        await closeSprint({ name: input.name, ended_on: input.ended_on, note: input.note })
+      } catch (err) {
+        if (incomeIds.length > 0) await supabase.from('incomes').delete().in('id', incomeIds)
+        return failed(err)
+      }
+    },
+    [sprints, expenses, sharedExpenses, shares, sharedAvailable, closeSprint, reload],
+  )
+
   const memberName = useCallback(
     (id: UUID | null) => (id ? members.find((m) => m.id === id)?.name ?? '（削除済み）' : '—'),
     [members],
@@ -406,6 +517,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     currentSprint,
     ensureOpenSprint,
     closeSprint,
+    settleAndClose,
+    insertMany,
     memberName,
     reload,
     insert,

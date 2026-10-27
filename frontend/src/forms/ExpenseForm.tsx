@@ -46,7 +46,8 @@ export function ExpenseForm({
   const [amount, setAmount] = useState(
     initial ? String(initial.amount) : preset?.amount ? String(preset.amount) : '',
   )
-  const [payerType, setPayerType] = useState<PayerType>(initial?.payer_type ?? 'team')
+  // 立替が中心の運用なので、新規は「個人立替（自分）」から始める
+  const [payerType, setPayerType] = useState<PayerType>(initial?.payer_type ?? 'member')
   const [paidBy, setPaidBy] = useState(initial?.paid_by ?? defaultMemberId ?? '')
   const [reimbursed, setReimbursed] = useState(initial?.reimbursed ?? false)
   const [reimbursedOn, setReimbursedOn] = useState(initial?.reimbursed_on ?? today())
