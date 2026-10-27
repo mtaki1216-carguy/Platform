@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Empty } from '../components/ui'
+import { Badge, Banner, Card, Empty, Tile } from '../components/ui'
+import { IconBalance, IconCoins, IconHandCoins } from '../components/icons'
 import { BalanceChart } from '../charts/BalanceChart'
 import {
   daysFromToday,
@@ -62,6 +63,34 @@ export function Dashboard() {
             。<Link to="/races">レース管理</Link>で申込状況を更新してください。
           </Banner>
         ) : null}
+
+        <div className="grid grid--tiles">
+          <Tile
+            tone="primary"
+            icon={<IconCoins />}
+            value={formatYen(summary.teamBalance)}
+            label="チーム残高"
+            note="現在の口座残高"
+          />
+          <Tile
+            tone="secondary"
+            icon={<IconHandCoins />}
+            value={formatYen(summary.unsettledTotal)}
+            label="未精算の立替"
+            note="メンバーへ返すべき合計"
+          />
+          <Tile
+            tone="plain"
+            icon={<IconBalance />}
+            value={
+              <span className={summary.projectedBalance < 0 ? 'value-bad' : undefined}>
+                {formatYen(summary.projectedBalance)}
+              </span>
+            }
+            label="精算後見込み残高"
+            note="立替を全額返した後に残る額"
+          />
+        </div>
 
         <Card title="チーム残高の推移" subtitle="各月末時点の口座残高">
           <BalanceChart data={monthly} />

@@ -1,12 +1,13 @@
 /* ===========================================================================
    GE8 ENDURANCE 運営プラットフォーム — ライトテーマ
 
-   方向: Linear の静けさ + IDE のデータグリッド
-   ・面はほぼ白。線はごく薄く、影は1px ぶんだけ。主役は数字と状態。
-   ・アクセントはインディゴ1色。装飾には使わず、現在地と主操作にだけ使う。
+   方向: Berry 風の管理画面（左サイドバー + 角丸カード）
+   ・白いサイドバーとヘッダー、薄いグレーブルーの角丸パネルの上に白いカードを置く。
+   ・アクセントはパープル（#5e35b1）、補助にブルー。現在地・主操作・ヒーロータイルに使う。
+   ・カードは枠線なし・やわらかい影・角丸12px。
    ・表の数値と日付だけ JetBrains Mono。桁がそろい、台帳として読める。
    ・UI は Inter（Latin のみ自前ホスト）。日本語は端末のゴシックに任せる。
-   ・強調は1か所だけ。スプリントの「終了条件」ゲート（.gate）。
+   ・スプリントの「終了条件」ゲート（.gate）は機能そのままに、同じトークンで描く。
    =========================================================================== */
 
 /* Latin サブセットのみ自前ホスト。可変フォントなので1ファイルで 400〜600 */
@@ -35,52 +36,57 @@
 :root {
   color-scheme: light;
 
-  /* 面 */
-  --page: #fbfbfc;
+  /* 面。--page はアプリ全体（白）、--panel はコンテンツを載せる薄いパネル */
+  --page: #ffffff;
+  --panel: #eef2f6;
   --surface: #ffffff;
-  --surface-sunken: #f7f8fa;
-  --surface-hover: #f9fafb;
-  --surface-active: #f1f2f6;
+  --surface-sunken: #f8fafc;
+  --surface-hover: #f8fafc;
+  --surface-active: #eef2f6;
 
   /* 線 */
-  --border: #ebecf0;
-  --border-strong: #dcdee3;
-  --gridline: #f1f2f5;
+  --border: #e3e8ef;
+  --border-strong: #cdd5df;
+  --gridline: #eef2f6;
 
-  /*
-   * 文字。Linear の二次・三次テキストはもう少し薄いが、11px のラベルで
-   * コントラスト 4.5:1 を割るので、階調を保ったまま濃くしてある。
-   * ink-2 = 5.0:1 / ink-muted = 4.7:1（白地）
-   */
-  --ink: #23252b;
-  --ink-2: #585c64;
-  --ink-muted: #6f747e;
+  /* 文字。ink-2 = 7.6:1 / ink-muted = 4.8:1（白地） */
+  --ink: #121926;
+  --ink-2: #4b5565;
+  --ink-muted: #697586;
 
-  /* アクセントはこの1色だけ。現在地と主操作に使う */
-  --accent: #5b5bd6;
-  --accent-ink: #4a4ac0;
-  --accent-wash: #eeeefb;
-  --accent-line: #cfcffa;
+  /* アクセント（パープル）。現在地・主操作・ヒーロータイルに使う */
+  --accent: #5e35b1;
+  --accent-ink: #4527a0;
+  --accent-wash: #ede7f6;
+  --accent-line: #d1c4e9;
+
+  /* 補助色（ブルー）。ヒーロータイルとデータ系列に使う */
+  --secondary: #1976d2;
+  --secondary-ink: #1565c0;
+  --secondary-wash: #e3f2fd;
 
   /* 状態。淡い地に濃い文字。地の色だけで意味を運ばせない */
-  --good: #197a4b;
-  --good-wash: #e8f6ee;
-  --good-line: #bfe4d0;
+  --good: #1b7a43;
+  --good-wash: #e6f6ec;
+  --good-line: #b9e4c8;
   --warning: #8a5a00;
-  --warning-wash: #fdf3e0;
-  --warning-line: #f2ddb0;
-  --critical: #c2352b;
+  --warning-wash: #fff8e1;
+  --warning-line: #ffe082;
+  --critical: #c62828;
   --critical-wash: #fdecea;
-  --critical-line: #f3ccc8;
+  --critical-line: #f5c6c2;
 
   /* データ系列（棒・折れ線）。状態色とは混ぜない */
-  --series-income: #5b5bd6;
-  --series-expense: #eb6834;
+  --series-income: #5e35b1;
+  --series-expense: #2196f3;
 
-  --radius: 8px;
-  --radius-sm: 6px;
-  --shadow: 0 1px 2px rgba(23, 25, 35, 0.04);
-  --shadow-pop: 0 10px 32px rgba(23, 25, 35, 0.14);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 14px rgba(32, 40, 45, 0.08);
+  --shadow-pop: 0 12px 36px rgba(32, 40, 45, 0.18);
+
+  --sidebar-w: 260px;
+  --topbar-h: 80px;
 
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans',
     'Noto Sans JP', sans-serif;
@@ -105,7 +111,7 @@ body {
   background: var(--page);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -147,74 +153,75 @@ a {
   letter-spacing: -0.02em;
 }
 
-/* ── アプリ骨格 ─────────────────────────────────────────────────────── */
+/* ── アプリ骨格（左サイドバー + ヘッダー + 角丸パネル）──────────────── */
 
 .app {
   min-height: 100vh;
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  width: var(--sidebar-w);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
+  padding: 0 16px 20px;
+  overflow-y: auto;
+  transition: transform 0.18s ease;
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.topbar__inner {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 0 20px;
+.sidebar__brand {
+  height: var(--topbar-h);
+  flex: none;
   display: flex;
-  align-items: stretch;
-  gap: 18px;
-  min-height: 48px;
-  flex-wrap: wrap;
+  align-items: center;
+  padding: 0 8px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: -0.005em;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: var(--accent);
   white-space: nowrap;
+  min-width: 0;
 }
 
 .brand__mark {
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
   flex: none;
 }
 
-/* IDE のタブバー。現在地は下線1本で示す */
-.nav {
-  display: flex;
-  gap: 2px;
-  flex: 1;
-  align-self: stretch;
-  overflow-x: auto;
-  scrollbar-width: none;
+.sidebar__label {
+  padding: 8px 10px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
-.nav::-webkit-scrollbar {
-  display: none;
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .nav a {
   display: flex;
   align-items: center;
-  padding: 0 11px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  gap: 14px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
   color: var(--ink-2);
   text-decoration: none;
   font-weight: 500;
   white-space: nowrap;
-  box-shadow: inset 0 -2px 0 transparent;
-  transition: background-color 0.1s ease, color 0.1s ease, box-shadow 0.1s ease;
+  transition: background-color 0.1s ease, color 0.1s ease;
 }
 
 .nav a:hover {
@@ -223,24 +230,101 @@ a {
 }
 
 .nav a.is-active {
-  color: var(--ink);
+  background: var(--accent-wash);
+  color: var(--accent);
   font-weight: 600;
-  background: transparent;
-  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
-/* 狭い画面では短縮ラベルに差し替える（下の @media で入れ替え） */
-.nav__short {
+.nav__icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.sidebar-scrim {
   display: none;
 }
 
-.topbar__aside {
+.shell {
+  min-height: 100vh;
+  margin-left: var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: margin-left 0.18s ease;
+}
+
+.app.is-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+.app.is-collapsed .shell {
+  margin-left: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: var(--topbar-h);
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--ink-muted);
-  font-size: 11.5px;
+  gap: 16px;
+  padding: 0 20px;
+  background: var(--page);
+}
+
+.topbar__menu {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-wash);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.topbar__menu:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.topbar__menu svg {
+  width: 20px;
+  height: 20px;
+}
+
+.topbar__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar__aside {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--secondary-ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.sync-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--secondary-wash);
+  font-weight: 500;
 }
 
 .topbar__aside .dot {
@@ -250,10 +334,10 @@ a {
 
 .main {
   flex: 1;
-  max-width: 1180px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 22px 20px 72px;
+  margin: 0 20px 20px;
+  padding: 24px;
+  background: var(--panel);
+  border-radius: var(--radius);
 }
 
 .page-head {
@@ -262,32 +346,148 @@ a {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .page-head h1 {
-  font-size: 20px;
+  font-size: 22px;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .page-head p {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   color: var(--ink-2);
-  font-size: 12.5px;
+  font-size: 13.5px;
   max-width: 66ch;
+}
+
+/* ── ヒーロータイル（ダッシュボード上部の数値）──────────────────────── */
+
+.grid--tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 20px;
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+  background: var(--surface);
+  color: var(--ink);
+  isolation: isolate;
+  min-height: 132px;
+}
+
+/* 右上に重ねる円。Berry の装飾。内容の上には出さない */
+.tile::before,
+.tile::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  z-index: -1;
+}
+
+.tile::before {
+  width: 190px;
+  height: 190px;
+  top: -90px;
+  right: -40px;
+  background: var(--tile-circle-1, transparent);
+}
+
+.tile::after {
+  width: 150px;
+  height: 150px;
+  top: -110px;
+  right: -100px;
+  background: var(--tile-circle-2, transparent);
+}
+
+.tile--primary {
+  background: var(--accent);
+  color: #fff;
+  --tile-circle-1: rgba(255, 255, 255, 0.1);
+  --tile-circle-2: rgba(0, 0, 0, 0.14);
+}
+
+.tile--secondary {
+  background: var(--secondary);
+  color: #fff;
+  --tile-circle-1: rgba(255, 255, 255, 0.12);
+  --tile-circle-2: rgba(0, 0, 0, 0.14);
+}
+
+.tile--plain {
+  --tile-circle-1: var(--warning-wash);
+  --tile-circle-2: #ffecb3;
+}
+
+.tile__icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.18);
+  margin-bottom: 16px;
+}
+
+.tile--plain .tile__icon {
+  background: var(--warning-wash);
+  color: var(--warning);
+}
+
+.tile__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.tile__value {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile__label {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tile--primary .tile__label,
+.tile--secondary .tile__label {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.tile--plain .tile__label {
+  color: var(--ink-2);
+}
+
+.tile__note {
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.tile--plain .tile__note {
+  color: var(--ink-muted);
 }
 
 /* ── パネル ─────────────────────────────────────────────────────────── */
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
 
 .card__head {
-  padding: 11px 16px;
+  padding: 16px 22px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -297,28 +497,33 @@ a {
 }
 
 .card__head h2 {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .card__head p {
-  margin: 2px 0 0;
-  font-size: 11.5px;
+  margin: 3px 0 0;
+  font-size: 12.5px;
   color: var(--ink-muted);
   max-width: 72ch;
 }
 
 .card__body {
-  padding: 16px;
+  padding: 22px;
 }
 
 .card__body--flush {
   padding: 0;
 }
 
+/* 表が角丸の下端からはみ出さないようにする */
+.card__body--flush .table-scroll {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
 .grid {
   display: grid;
-  gap: 12px;
+  gap: 20px;
 }
 
 /*
@@ -336,7 +541,7 @@ a {
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
 }
 
 /* ── スプリント ─────────────────────────────────────────────────────── */
@@ -349,7 +554,8 @@ a {
 }
 
 .sprint-head h2 {
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .sprint-head__period {
@@ -379,8 +585,8 @@ a {
 
 .sprint-figures dd {
   margin: 3px 0 0;
-  font-size: 19px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 /* 演算子。数字を等幅で始めたいので幅を固定して桁位置を合わせる */
@@ -438,7 +644,7 @@ a {
 
 .gate__rail {
   flex: 1;
-  height: 4px;
+  height: 8px;
   border-radius: 999px;
   background: var(--surface-active);
   overflow: hidden;
@@ -571,10 +777,9 @@ a {
 
 .stat {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 13px 15px;
+  padding: 18px 20px;
 }
 
 .stat__label {
@@ -598,8 +803,7 @@ a {
 }
 
 .stat--hero {
-  border-color: var(--accent-line);
-  background: linear-gradient(180deg, #ffffff 0%, #fcfcff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, var(--accent-wash) 100%);
 }
 
 .stat--hero .stat__value {
@@ -630,11 +834,11 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 1px 7px;
-  border-radius: 5px;
-  font-size: 11.5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
   font-weight: 500;
-  line-height: 1.7;
+  line-height: 1.6;
   white-space: nowrap;
   border: 1px solid transparent;
 }
@@ -686,8 +890,8 @@ a {
 .btn {
   font: inherit;
   font-weight: 500;
-  padding: 5px 11px;
-  min-height: 28px;
+  padding: 7px 16px;
+  min-height: 36px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   background: var(--surface);
@@ -701,9 +905,14 @@ a {
   transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease;
 }
 
+.btn {
+  text-decoration: none;
+}
+
 .btn:hover:not(:disabled) {
-  background: var(--surface-sunken);
-  border-color: var(--ink-muted);
+  background: var(--accent-wash);
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
 }
 
 .btn:active:not(:disabled) {
@@ -719,6 +928,7 @@ a {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(94, 53, 177, 0.28);
 }
 
 .btn--primary:hover:not(:disabled) {
@@ -727,20 +937,20 @@ a {
 }
 
 .btn--primary:active:not(:disabled) {
-  background: #40409f;
+  background: #38208a;
 }
 
 .btn--ghost {
   border-color: transparent;
   background: transparent;
   color: var(--ink-2);
-  padding: 4px 8px;
+  padding: 6px 12px;
 }
 
 .btn--ghost:hover:not(:disabled) {
-  background: var(--surface-sunken);
+  background: var(--accent-wash);
   border-color: transparent;
-  color: var(--ink);
+  color: var(--accent-ink);
 }
 
  /*
@@ -759,9 +969,9 @@ a {
 }
 
 .btn--sm {
-  padding: 3px 9px;
-  min-height: 24px;
-  font-size: 12px;
+  padding: 4px 12px;
+  min-height: 30px;
+  font-size: 12.5px;
 }
 
 *:focus-visible {
@@ -790,8 +1000,8 @@ a {
 
 /* Field は自身が <label>。項目名は最初の <span> に入る */
 .field > span:first-child {
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--ink-2);
 }
 
@@ -813,10 +1023,10 @@ input[type='url'],
 select,
 textarea {
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   width: 100%;
-  min-height: 30px;
-  padding: 5px 9px;
+  min-height: 40px;
+  padding: 7px 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -841,7 +1051,7 @@ input[type='number'],
 input[type='date'] {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 textarea {
@@ -853,7 +1063,7 @@ select {
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
     linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
-  background-position: calc(100% - 15px) 14px, calc(100% - 11px) 14px;
+  background-position: calc(100% - 17px) 17px, calc(100% - 13px) 17px;
   background-size: 4px 4px, 4px 4px;
   background-repeat: no-repeat;
   padding-right: 28px;
@@ -869,11 +1079,11 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 11px;
+  padding: 7px 14px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13.5px;
   background: var(--surface);
   transition: background-color 0.1s ease, border-color 0.1s ease;
 }
@@ -948,7 +1158,7 @@ select {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 /* 名前や内容の列。狭いと3行に折り返されるので下限を決める */
@@ -958,18 +1168,17 @@ table {
 
 thead th {
   text-align: left;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--ink-muted);
-  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 11px 16px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   background: var(--surface-sunken);
 }
 
 tbody td {
-  padding: 9px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--gridline);
   vertical-align: top;
 }
@@ -999,7 +1208,7 @@ tbody tr:hover {
 
 .sub {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-muted);
   margin-top: 2px;
 }
@@ -1017,7 +1226,7 @@ tbody tr:hover {
 }
 
 tfoot td {
-  padding: 9px 14px;
+  padding: 11px 16px;
   border-top: 1px solid var(--border);
   font-weight: 500;
   background: var(--surface-sunken);
@@ -1059,7 +1268,7 @@ tfoot .num {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(23, 25, 35, 0.28);
+  background: rgba(18, 25, 38, 0.4);
   display: grid;
   place-items: start center;
   padding: 24px 16px 48px;
@@ -1068,8 +1277,7 @@ tfoot .num {
 
 .modal {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-pop);
   width: 100%;
   max-width: 600px;
@@ -1081,7 +1289,7 @@ tfoot .num {
 }
 
 .modal__head {
-  padding: 13px 18px;
+  padding: 16px 22px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1090,11 +1298,12 @@ tfoot .num {
 }
 
 .modal__head h2 {
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .modal__body {
-  padding: 18px;
+  padding: 22px;
 }
 
 /* ── グラフ ─────────────────────────────────────────────────────────── */
@@ -1143,10 +1352,9 @@ tfoot .num {
   z-index: 5;
   pointer-events: none;
   background: var(--surface);
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-pop);
-  padding: 8px 10px;
+  padding: 10px 12px;
   font-size: 11.5px;
   min-width: 148px;
   transform: translate(-50%, -100%);
@@ -1227,9 +1435,9 @@ tfoot .num {
   display: flex;
   gap: 9px;
   align-items: flex-start;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
   border: 1px solid transparent;
 }
 
@@ -1277,7 +1485,8 @@ tfoot .num {
 }
 
 .login__head h1 {
-  font-size: 17px;
+  font-size: 20px;
+  font-weight: 700;
   margin-top: 12px;
 }
 
@@ -1347,68 +1556,49 @@ tfoot .num {
 
 /*
  * スマホ・タブレット縦。
- * ナビをブランド名とログアウトの間に置くと、残った隙間に押し込まれて
- * タブが1つも見えなくなる（430px 幅で表示幅 38px）。独立した行に移して
- * 横幅いっぱいを使い、ラベルも短縮して5つとも指で押せるようにする。
+ * サイドバーは画面の上に重ねるドロワーにして、ヘッダーのメニューボタンで開閉する。
+ * 開いている間は背後を暗くし、タップで閉じられるようにする。
  */
 @media (max-width: 880px) {
-  .topbar__inner {
-    padding: 8px 12px 0;
-    min-height: 0;
-    gap: 10px;
-    align-items: center;
+  .shell,
+  .app.is-collapsed .shell {
+    margin-left: 0;
   }
 
-  .brand {
-    order: 1;
+  .sidebar {
+    box-shadow: var(--shadow-pop);
   }
 
-  .topbar__aside {
-    order: 2;
-    margin-left: auto;
+  .app:not(.is-collapsed) .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(18, 25, 38, 0.4);
   }
 
-  .nav {
-    order: 3;
-    /* flex-basis 100% で必ず改行させる */
-    flex: 1 0 100%;
-    gap: 0;
-    margin: 8px -12px 0;
-    padding: 0 8px;
-    border-top: 1px solid var(--border);
+  .topbar {
+    padding: 0 14px;
+    height: 64px;
   }
 
-  .nav a {
-    /* 5つで幅を等分し、指で押せる高さ（約42px）を確保する */
-    flex: 1 1 0;
-    min-width: 0;
-    display: flex;
-    justify-content: center;
-    text-align: center;
-    padding: 11px 6px;
-    font-size: 12.5px;
-    border-radius: 0;
-  }
-}
-
-/* 正式ラベルは合計 478px 必要。入らなくなったら短縮ラベルに切り替える */
-@media (max-width: 560px) {
-  .nav__full {
-    display: none;
-  }
-
-  .nav__short {
-    display: inline;
+  .main {
+    margin: 0 10px 10px;
+    padding: 16px;
   }
 }
 
 @media (max-width: 620px) {
   .main {
-    padding: 16px 14px 64px;
+    padding: 14px;
   }
 
   .page-head h1 {
-    font-size: 18px;
+    font-size: 20px;
+  }
+
+  .tile__value {
+    font-size: 26px;
   }
 
   .stat--hero .stat__value {
@@ -1416,7 +1606,7 @@ tfoot .num {
   }
 
   .sprint-figures dd {
-    font-size: 18px;
+    font-size: 19px;
   }
 
   /* 折り返すと左の罫線が行頭に浮くので、上の罫線に切り替える */
@@ -1444,6 +1634,18 @@ tfoot .num {
     background: #fff;
   }
 
+  .shell {
+    margin-left: 0;
+  }
+
+  .main {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .sidebar,
+  .sidebar-scrim,
   .topbar,
   .btn,
   .col-actions {

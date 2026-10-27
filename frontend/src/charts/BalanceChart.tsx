@@ -5,10 +5,10 @@ import { Empty } from '../components/ui'
 import { linePath, niceTicks, useMeasuredWidth } from './chartUtils'
 
 const SURFACE = '#ffffff'
-const SERIES = '#5b5bd6'
-const GRID = '#eff0f3'
-const BASELINE = '#dcdee3'
-const MUTED = '#6f747e'
+const SERIES = '#5e35b1'
+const GRID = '#eef2f6'
+const BASELINE = '#cdd5df'
+const MUTED = '#697586'
 
 const H = 232
 const PAD = { top: 18, right: 62, bottom: 28, left: 58 }

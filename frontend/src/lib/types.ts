@@ -155,7 +155,7 @@ export const RACE_STATUS_TONE: Record<RaceStatus, string> = {
  */
 export const RACE_STATUS_COLOR: Record<RaceStatus, string> = {
   considering: '#8b8f99',
-  planned: '#5b5bd6',
+  planned: '#5e35b1',
   applied: '#d99100',
   accepted: '#197a4b',
   declined: '#c5c8ce',

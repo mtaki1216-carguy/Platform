@@ -4,11 +4,11 @@ import { formatMonth, formatMonthAxis, formatYen, formatYenCompact } from '../li
 import { Empty } from '../components/ui'
 import { columnPath, niceTicks, useMeasuredWidth } from './chartUtils'
 
-const INCOME = '#5b5bd6'
-const EXPENSE = '#eb6834'
-const GRID = '#eff0f3'
-const BASELINE = '#dcdee3'
-const MUTED = '#6f747e'
+const INCOME = '#5e35b1'
+const EXPENSE = '#2196f3'
+const GRID = '#eef2f6'
+const BASELINE = '#cdd5df'
+const MUTED = '#697586'
 
 const H = 212
 const PAD = { top: 16, right: 14, bottom: 28, left: 58 }

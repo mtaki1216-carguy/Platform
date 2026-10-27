@@ -32,6 +32,33 @@ export function Stat({
   )
 }
 
+/**
+ * ダッシュボード上部のヒーロータイル。色付きの面（primary / secondary）か白（plain）。
+ * value は整形済みの文字列を渡す。
+ */
+export function Tile({
+  tone,
+  icon,
+  label,
+  value,
+  note,
+}: {
+  tone: 'primary' | 'secondary' | 'plain'
+  icon: ReactNode
+  label: string
+  value: ReactNode
+  note?: ReactNode
+}) {
+  return (
+    <div className={`tile tile--${tone}`}>
+      <div className="tile__icon">{icon}</div>
+      <div className="tile__value">{value}</div>
+      <div className="tile__label">{label}</div>
+      {note ? <div className="tile__note">{note}</div> : null}
+    </div>
+  )
+}
+
 export function Badge({ tone, children }: { tone: string; children: ReactNode }) {
   return <span className={`badge badge--${tone}`}>{children}</span>
 }
