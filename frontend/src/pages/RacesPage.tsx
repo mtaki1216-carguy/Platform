@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Empty, Modal, Stat } from '../components/ui'
+import { Badge, Banner, Card, Empty, Modal, Tile } from '../components/ui'
+import { IconFlag } from '../components/icons'
 import { RaceForm } from '../forms/RaceForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
 import { raceSpend } from '../lib/finance'
@@ -88,11 +89,12 @@ export function RacesPage() {
       </div>
 
       <div className="stack">
-        <div className="stat-single">
-          <Stat
-            label="申込開始日が近いレース"
+        <div className="grid grid--tiles tiles-single">
+          <Tile
+            tone={openingSoon.length > 0 ? 'secondary' : 'plain'}
+            icon={<IconFlag />}
             value={`${openingSoon.length} 件`}
-            tone={openingSoon.length > 0 ? 'bad' : undefined}
+            label="申込開始日が近いレース"
             note={`申込開始まで${OPENING_SOON_DAYS}日以内`}
           />
         </div>

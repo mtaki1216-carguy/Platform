@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Field, Modal, Stat } from '../components/ui'
+import { Badge, Banner, Card, Field, Modal, Tile } from '../components/ui'
+import { IconCoins, IconHandCoins, IconUsers } from '../components/icons'
 import { formatYen } from '../lib/format'
 import type { Member } from '../lib/types'
 
@@ -84,6 +85,26 @@ export function MembersPage() {
       </div>
 
       <div className="stack">
+        <div className="grid grid--tiles">
+          <Tile tone="primary" icon={<IconUsers />} value={`${members.length} 名`} label="メンバー" />
+          <Tile
+            tone="secondary"
+            icon={<IconCoins />}
+            value={formatYen(summary.byMember.reduce((s, m) => s + m.feesPaid, 0))}
+            label="会費 累計"
+          />
+          <Tile
+            tone="plain"
+            icon={<IconHandCoins />}
+            value={
+              <span className={summary.unsettledTotal > 0 ? 'value-bad' : undefined}>
+                {formatYen(summary.unsettledTotal)}
+              </span>
+            }
+            label="未精算の立替"
+          />
+        </div>
+
         <Card title="この端末を使っている人" subtitle="フォームの初期値に使われます。ブラウザにだけ保存されます">
           <Field label="自分">
             <select value={selfId} onChange={(e) => setSelfId(e.target.value)}>
@@ -101,16 +122,6 @@ export function MembersPage() {
             </p>
           ) : null}
         </Card>
-
-        <div className="grid grid--stats">
-          <Stat label="メンバー" value={`${members.length} 名`} />
-          <Stat label="会費 累計" value={formatYen(summary.byMember.reduce((s, m) => s + m.feesPaid, 0))} />
-          <Stat
-            label="未精算の立替"
-            value={formatYen(summary.unsettledTotal)}
-            tone={summary.unsettledTotal > 0 ? 'bad' : undefined}
-          />
-        </div>
 
         {error ? <Banner tone="critical">{error}</Banner> : null}
 

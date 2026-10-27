@@ -1,37 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
 
-/** 数値タイル。value は整形済みの文字列を渡す */
-export function Stat({
-  label,
-  value,
-  note,
-  tone,
-  hero,
-  swatch,
-}: {
-  label: string
-  value: ReactNode
-  note?: ReactNode
-  tone?: 'good' | 'bad'
-  hero?: boolean
-  swatch?: string
-}) {
-  return (
-    <div className={`stat${hero ? ' stat--hero' : ''}`}>
-      <div className="stat__label">
-        {swatch ? <span className="dot" style={{ background: swatch }} /> : null}
-        {label}
-      </div>
-      <div
-        className={`stat__value${tone === 'good' ? ' value-good' : tone === 'bad' ? ' value-bad' : ''}`}
-      >
-        {value}
-      </div>
-      {note ? <div className="stat__note">{note}</div> : null}
-    </div>
-  )
-}
-
 /**
  * ダッシュボード上部のヒーロータイル。色付きの面（primary / secondary）か白（plain）。
  * value は整形済みの文字列を渡す。
