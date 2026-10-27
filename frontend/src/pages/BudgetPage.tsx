@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useTeamData } from '../data/DataProvider'
 import { useSelfMember } from '../hooks/useSelfMember'
-import { Badge, Banner, Card, Empty, Modal } from '../components/ui'
+import { Badge, Banner, Card, Empty, Modal, Tile } from '../components/ui'
+import { IconBalance, IconCoins, IconWallet } from '../components/icons'
 import { MonthlyBars } from '../charts/MonthlyBars'
 import { IncomeForm } from '../forms/IncomeForm'
 import { ExpenseForm } from '../forms/ExpenseForm'
@@ -155,19 +156,14 @@ export function BudgetPage() {
           </Banner>
         ) : null}
 
-        <Card
-          title={
+        {/* スプリントの見出しと操作。数字は下の3枚のタイルに任せる */}
+        <section className="card sprint-bar">
+          <div className="sprint-bar__row">
             <span className="sprint-head">
-              <span>{sprintLabel(selected)}</span>
-              {selected.isOpen ? (
-                <Badge tone="good">進行中</Badge>
-              ) : (
-                <Badge tone="muted">終了</Badge>
-              )}
+              <h2>{sprintLabel(selected)}</h2>
+              {selected.isOpen ? <Badge tone="good">進行中</Badge> : <Badge tone="muted">終了</Badge>}
               <span className="sprint-head__period">{sprintPeriod(selected)}</span>
             </span>
-          }
-          actions={
             <div className="toolbar">
               {sprintStats.length > 1 ? (
                 <select
@@ -192,76 +188,47 @@ export function BudgetPage() {
                 </button>
               ) : null}
             </div>
-          }
-        >
-          {/*
-            期首 + 収入 − 支出 = 現在の残高。この4つは1本の計算なので、演算子を
-            添えてつながりが読めるようにする（並べただけだと、6つの対等な数字に
-            見えて関係が消える）。収支はこの計算の差分なので残高の下に小さく置く。
-            未精算の立替は口座の外の話なので、罫線で区切って別扱いにする。
-          */}
-          <dl className="sprint-figures">
-            <div>
-              <dt>期首残高</dt>
-              <dd>{formatYen(selected.openingBalance)}</dd>
-            </div>
-            <div>
-              <dt>収入</dt>
-              <dd>
-                <span className="sprint-figures__op" aria-hidden="true">
-                  +
-                </span>
-                {formatYen(selected.income)}
-              </dd>
-            </div>
-            <div>
-              <dt>支出（口座から）</dt>
-              <dd>
-                <span className="sprint-figures__op" aria-hidden="true">
-                  −
-                </span>
-                {formatYen(selected.cashOut)}
-              </dd>
-            </div>
-            <div>
-              <dt>{selected.isOpen ? '口座残高' : '期末残高'}</dt>
-              <dd>
-                <span className="sprint-figures__op" aria-hidden="true">
-                  =
-                </span>
+          </div>
+          {selected.sprint.note ? <p className="sprint-bar__note">{selected.sprint.note}</p> : null}
+        </section>
+
+        {/*
+          スプリントの要点は3つだけ: 開始時の残高、このスプリントで使った額、その差額。
+          差額 = 開始時の残高 + 収入 − 使った額（＝いまの口座残高）。収入があれば注記で言う。
+        */}
+        <div className="grid grid--tiles">
+          <Tile
+            tone="primary"
+            icon={<IconCoins />}
+            value={formatYen(selected.openingBalance)}
+            label="開始時の残高"
+            note={`${formatDate(selected.sprint.started_on)} 時点のチーム残高`}
+          />
+          <Tile
+            tone="secondary"
+            icon={<IconWallet />}
+            value={formatYen(selected.cashOut)}
+            label="使った額"
+            note="このスプリントで口座から出た額"
+          />
+          <Tile
+            tone="plain"
+            icon={<IconBalance />}
+            value={
+              <span className={selected.closingBalance < 0 ? 'value-bad' : undefined}>
                 {formatYen(selected.closingBalance)}
-                <span
-                  className={`sub ${
-                    selected.net < 0 ? 'value-bad' : selected.net > 0 ? 'value-good' : ''
-                  }`}
-                >
-                  このスプリントで {formatYenSigned(selected.net)}
-                </span>
-              </dd>
-            </div>
-            <div className="is-aside">
-              <dt>未精算の立替</dt>
-              <dd className={selected.unsettled > 0 ? 'value-bad' : ''}>
-                {formatYen(selected.unsettled)}
-                <span className="sub">返す予定。口座残高には含みません</span>
-              </dd>
-            </div>
-            {selected.isOpen ? (
-              <div>
-                <dt>実質残高</dt>
-                <dd className={selected.closingBalance - selected.unsettled < 0 ? 'value-bad' : ''}>
-                  {formatYen(selected.closingBalance - selected.unsettled)}
-                  <span className="sub">口座残高 − 未精算の立替</span>
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-          {selected.sprint.note ? (
-            <p style={{ marginBottom: 0, marginTop: 14, fontSize: 13, color: 'var(--ink-2)' }}>
-              {selected.sprint.note}
-            </p>
-          ) : null}
-        </Card>
+              </span>
+            }
+            label="差額"
+            note={
+              selected.income > 0
+                ? `収入 ${formatYen(selected.income)} を含む${selected.isOpen ? '・現在の残高' : '・期末残高'}`
+                : selected.isOpen
+                  ? '現在の残高'
+                  : '期末残高'
+            }
+          />
+        </div>
 
         <Card
           title="月ごとの収支"

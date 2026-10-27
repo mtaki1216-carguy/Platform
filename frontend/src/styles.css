@@ -144,7 +144,6 @@ a {
 }
 
 /* 見出しの数字は UI フォントのままそろえる（Linear 寄りの見え方） */
-.sprint-figures dd,
 .rank__value {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -561,50 +560,23 @@ a {
   color: var(--ink-muted);
 }
 
-/*
- * スプリントの収支を1行に並べる。
- * 大きなタイルは使わない（画面上部を占領してしまうため）。
- */
-.sprint-figures {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(146px, 100%), 1fr));
-  gap: 14px 20px;
-  margin: 0;
+/* スプリントの見出しと操作（数字は3枚のタイル） */
+.sprint-bar {
+  padding: 16px 22px;
 }
 
-.sprint-figures > div {
-  min-width: 0;
+.sprint-bar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
 }
 
-.sprint-figures dt {
-  font-size: 11.5px;
-  color: var(--ink-muted);
-}
-
-.sprint-figures dd {
-  margin: 3px 0 0;
-  font-size: 22px;
-  font-weight: 700;
-}
-
-/* 演算子。数字を等幅で始めたいので幅を固定して桁位置を合わせる */
-.sprint-figures__op {
-  display: inline-block;
-  width: 0.7em;
-  margin-right: 1px;
-  color: var(--ink-muted);
-  font-weight: 500;
-}
-
-.sprint-figures dd .sub {
-  letter-spacing: normal;
-  font-weight: 400;
-}
-
-/* 未精算の立替は口座の外の話。計算の並びから切り離す */
-.sprint-figures > .is-aside {
-  border-left: 1px solid var(--border);
-  padding-left: 16px;
+.sprint-bar__note {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
 }
 
 /* 精算して締める：口座残高 − 未精算の立替 = 実質残高 */
@@ -1570,20 +1542,6 @@ tfoot .num {
 
   .tile__value {
     font-size: 26px;
-  }
-
-
-  .sprint-figures dd {
-    font-size: 19px;
-  }
-
-  /* 折り返すと左の罫線が行頭に浮くので、上の罫線に切り替える */
-  .sprint-figures > .is-aside {
-    border-left: none;
-    border-top: 1px solid var(--border);
-    padding-left: 0;
-    padding-top: 12px;
-    grid-column: 1 / -1;
   }
 }
 
