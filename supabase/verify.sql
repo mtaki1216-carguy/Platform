@@ -167,6 +167,16 @@ select 項目, 結果, 判定 from (
 
   union all
 
+  -- 車両の状態（タイヤなど）。ダッシュボードの「車両の状態」が使う
+  select 7.46, 'テーブル: 車両の状態',
+         count(*) || ' / 1',
+         case when count(*) = 1 then 'OK'
+              else '0006_vehicle_status.sql を実行してください（実行するまで車両の状態は保存できません）' end
+  from information_schema.tables
+  where table_schema = 'public' and table_name = 'vehicle_status'
+
+  union all
+
   -- 進行中スプリントの有無と、未割り当ての記録がないか
   select * from pg_temp.sprint_checks()
 

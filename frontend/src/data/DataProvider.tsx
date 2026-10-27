@@ -31,6 +31,7 @@ import type {
   SharedShare,
   Sprint,
   UUID,
+  VehicleStatus,
 } from '../lib/types'
 
 /** リアルタイム同期の対象テーブル */
@@ -45,10 +46,10 @@ const TABLES = [
 ] as const
 
 /**
- * 割り勘の2テーブル（0005_shared_expenses.sql）。
+ * あとから足した任意のテーブル。割り勘（0005）と車両の状態（0006）。
  * マイグレーション未実行でも他の画面が壊れないよう、上の TABLES とは別に扱う。
  */
-const SHARED_TABLES = ['shared_expenses', 'shared_expense_shares'] as const
+const SHARED_TABLES = ['shared_expenses', 'shared_expense_shares', 'vehicle_status'] as const
 
 export type TableName = (typeof TABLES)[number] | (typeof SHARED_TABLES)[number]
 
@@ -97,6 +98,10 @@ interface TeamData {
   shares: SharedShare[]
   /** 0005 のマイグレーションが済んでいるか。false の間は割り勘を登録できない */
   sharedAvailable: boolean
+  /** 車両の現在の状態（タイヤなど）。0006 が未実行、または未入力なら null */
+  vehicleStatus: VehicleStatus | null
+  /** 0006 のマイグレーションが済んでいるか。false の間は車両の状態を保存できない */
+  vehicleAvailable: boolean
 
   /** 残高などの集計。lib/finance.ts が唯一の計算元 */
   summary: Summary
@@ -141,6 +146,12 @@ interface TeamData {
   remove: (table: TableName, id: UUID) => Promise<void>
   setParticipant: (raceId: UUID, memberId: UUID, role: string) => Promise<void>
   removeParticipant: (raceId: UUID, memberId: UUID) => Promise<void>
+  /** 車両の状態を保存する（常に1行を更新する） */
+  saveVehicleStatus: (patch: {
+    tire_front: string | null
+    tire_rear: string | null
+    note: string | null
+  }) => Promise<void>
   /** 割り勘を登録する。対象メンバーの負担額も一緒に保存する（途中で失敗したら取り消す） */
   createSharedExpense: (expense: SharedExpenseInput, shares: SharedShareInput[]) => Promise<void>
 }
@@ -162,9 +173,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [sharedExpenses, setSharedExpenses] = useState<SharedExpense[]>([])
   const [shares, setShares] = useState<SharedShare[]>([])
   const [sharedAvailable, setSharedAvailable] = useState(false)
+  const [vehicleStatus, setVehicleStatus] = useState<VehicleStatus | null>(null)
+  const [vehicleAvailable, setVehicleAvailable] = useState(false)
 
   const reload = useCallback(async () => {
-    const [sp, m, i, e, r, mr, rp, se, ss] = await Promise.all([
+    const [sp, m, i, e, r, mr, rp, se, ss, vs] = await Promise.all([
       supabase.from('sprints').select('*').order('started_on'),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('incomes').select('*').order('occurred_on', { ascending: false }),
@@ -174,11 +187,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       supabase.from('race_participants').select('*'),
       supabase.from('shared_expenses').select('*').order('occurred_on', { ascending: false }),
       supabase.from('shared_expense_shares').select('*'),
+      supabase.from('vehicle_status').select('*').maybeSingle(),
     ])
 
     // 割り勘のテーブルが無いのは「まだ 0005 を実行していない」だけなので、エラーにしない
     const sharedMissing = isMissingTable(se.error) || isMissingTable(ss.error)
-    const failed = [sp, m, i, e, r, mr, rp, ...(sharedMissing ? [] : [se, ss])].find((res) => res.error)
+    const vehicleMissing = isMissingTable(vs.error)
+    const failed = [sp, m, i, e, r, mr, rp, ...(sharedMissing ? [] : [se, ss]), ...(vehicleMissing ? [] : [vs])].find(
+      (res) => res.error,
+    )
     if (failed?.error) {
       setError(describeError(failed.error))
       setLoading(false)
@@ -195,6 +212,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSharedExpenses(sharedMissing ? [] : ((se.data ?? []) as SharedExpense[]))
     setShares(sharedMissing ? [] : ((ss.data ?? []) as SharedShare[]))
     setSharedAvailable(!sharedMissing)
+    setVehicleStatus(vehicleMissing ? null : ((vs.data ?? null) as VehicleStatus | null))
+    setVehicleAvailable(!vehicleMissing)
     setError(null)
     setLastSyncedAt(new Date())
     setLoading(false)
@@ -306,6 +325,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .delete()
         .eq('race_id', raceId)
         .eq('member_id', memberId)
+      if (err) throw new Error(describeError(err))
+      await reload()
+    },
+    [reload],
+  )
+
+  const saveVehicleStatus = useCallback(
+    async (patch: { tire_front: string | null; tire_rear: string | null; note: string | null }) => {
+      // 行は常に1つ（id = true）。まだ無ければ作り、あれば更新する
+      const { error: err } = await supabase
+        .from('vehicle_status')
+        .upsert({ id: true, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'id' })
       if (err) throw new Error(describeError(err))
       await reload()
     },
@@ -511,6 +542,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     sharedExpenses,
     shares,
     sharedAvailable,
+    vehicleStatus,
+    vehicleAvailable,
     summary,
     monthly,
     sprintStats,
@@ -527,6 +560,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setParticipant,
     removeParticipant,
     createSharedExpense,
+    saveVehicleStatus,
   }
 
   return <Context.Provider value={value}>{children}</Context.Provider>

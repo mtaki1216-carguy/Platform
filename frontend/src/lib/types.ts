@@ -125,6 +125,17 @@ export interface SharedShare {
   created_at: string
 }
 
+/** 車両の現在の状態。チームの車は1台なので常に1行だけ */
+export interface VehicleStatus {
+  id: boolean
+  /** タイヤのサイズ。書式は縛らず、書いたとおりに持つ（例: 195/55/15） */
+  tire_front: string | null
+  tire_rear: string | null
+  /** タイヤ以外の状態 */
+  note: string | null
+  updated_at: string
+}
+
 export const MAINTENANCE_CATEGORIES = {
   engine: 'エンジン',
   brake: 'ブレーキ',
